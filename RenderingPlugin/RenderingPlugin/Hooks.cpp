@@ -32,6 +32,38 @@ static void* ApplyHook(void* obj, int vtableOffset, void* newFunction)
 
 // --- Hooked 函数实现 ---
 
+
+extern "C" static HRESULT STDMETHODCALLTYPE Hooked_CreateGraphicsPipelineState(
+        ID3D12Device* This,
+        _In_  const D3D12_GRAPHICS_PIPELINE_STATE_DESC* pDesc,
+        REFIID riid,
+        _COM_Outptr_  void** ppPipelineState
+)
+{
+    LOG("[HOOK Native] Hooked_CreateGraphicsPipelineState called.");
+    return OrigCreateGraphicsPipelineState(This, pDesc, riid, ppPipelineState);
+}
+
+extern "C" static HRESULT STDMETHODCALLTYPE Hooked_CreateComputePipelineState(
+    ID3D12Device* This,
+    _In_  const D3D12_COMPUTE_PIPELINE_STATE_DESC* pDesc,
+    REFIID riid,
+    _COM_Outptr_  void** ppPipelineState)
+{
+    LOG("[HOOK Native] Hooked_CreateComputePipelineState called.");
+    return OrigCreateComputePipelineState(This, pDesc, riid, ppPipelineState);
+}
+
+extern "C" static HRESULT STDMETHODCALLTYPE Hooked_Reset(
+    ID3D12GraphicsCommandList1* This,
+    _In_  ID3D12CommandAllocator* pAllocator,
+    _In_opt_  ID3D12PipelineState* pInitialState
+)
+{
+    LOG("[HOOK Native] Hooked_Reset called.");
+    return OrigReset(This, pAllocator,  pInitialState);
+}
+
 extern "C" HRESULT STDMETHODCALLTYPE Hooked_CreateRootSignature(
     ID3D12Device* This, UINT nodeMask, const void* pBlob, SIZE_T blobLength, REFIID riid, void** ppv)
 {
@@ -40,6 +72,51 @@ extern "C" HRESULT STDMETHODCALLTYPE Hooked_CreateRootSignature(
     return OrigCreateRootSignature(This, nodeMask, pBlob, blobLength, riid, ppv);
 }
 
+extern "C" static HRESULT STDMETHODCALLTYPE Hooked_CreateDescriptorHeap(ID3D12Device * device, _In_  D3D12_DESCRIPTOR_HEAP_DESC * pDescriptorHeapDesc,
+    REFIID riid,
+    _COM_Outptr_  void** ppvHeap)
+{
+    LOG("[HOOK Native] Hooked_CreateDescriptorHeap called.");
+    return OrigCreateDescriptorHeap(device, pDescriptorHeapDesc, riid, ppvHeap);
+}
+
+static void STDMETHODCALLTYPE Hooked_SetGraphicsRootSignature(ID3D12GraphicsCommandList* This,
+    _In_opt_  ID3D12RootSignature* pRootSignature)
+{
+    LOG("[HOOK Native] Hooked_SetGraphicsRootSignature called.");
+    OrigSetGraphicsRootSignature(This, pRootSignature);
+}
+
+extern "C" static void STDMETHODCALLTYPE Hooked_SetComputeRootSignature(ID3D12GraphicsCommandList* This,
+    _In_opt_  ID3D12RootSignature* pRootSignature)
+{
+    LOG("[HOOK Native] Hooked_SetComputeRootSignature called.");
+    OrigSetComputeRootSignature(This, pRootSignature);
+}
+
+extern "C" static void STDMETHODCALLTYPE Hooked_SetDescriptorHeaps(ID3D12GraphicsCommandList10* This,
+    _In_  UINT NumDescriptorHeaps,
+    _In_reads_(NumDescriptorHeaps)  ID3D12DescriptorHeap* const* ppDescriptorHeaps)
+{
+    LOG("[HOOK Native] Hooked_SetDescriptorHeaps called.");
+    OrigSetDescriptorHeaps(This, NumDescriptorHeaps, ppDescriptorHeaps);
+}
+
+extern "C" static void STDMETHODCALLTYPE Hooked_SetComputeRootDescriptorTable(ID3D12CommandList* list,
+    _In_  UINT RootParameterIndex,
+    _In_  D3D12_GPU_DESCRIPTOR_HANDLE BaseDescriptor)
+{
+    LOG("[HOOK Native] Hooked_SetComputeRootDescriptorTable called.");
+    OrigSetComputeRootDescriptorTable(list, RootParameterIndex, BaseDescriptor);
+}
+
+extern "C" static void STDMETHODCALLTYPE Hooked_SetGraphicsRootDescriptorTable(ID3D12GraphicsCommandList* list,
+    _In_  UINT RootParameterIndex,
+    _In_  D3D12_GPU_DESCRIPTOR_HANDLE BaseDescriptor)
+{
+    LOG("[HOOK Native] Hooked_SetGraphicsRootDescriptorTable called.");
+    OrigSetGraphicsRootDescriptorTable(list, RootParameterIndex, BaseDescriptor);
+}
 
 // --- 启动接口 ---
 void StartD3D12Hooks(ID3D12Device* device, IUnityLog* logger)
@@ -52,9 +129,10 @@ void StartD3D12Hooks(ID3D12Device* device, IUnityLog* logger)
     __D3D12HOOKS_InitializeD3D12Offsets();
 
     // 2. 执行 Hook
+    HookDeviceFunc(device, CreateDescriptorHeap);
     HookDeviceFunc(device, CreateRootSignature);
-    // HookDeviceFunc(device, CreateDescriptorHeap);
-    // ...
+    HookDeviceFunc(device, CreateComputePipelineState);
+    HookDeviceFunc(device, CreateGraphicsPipelineState);
 
     initialized = true;
 }
