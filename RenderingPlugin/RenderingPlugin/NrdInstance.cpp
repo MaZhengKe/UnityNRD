@@ -97,7 +97,7 @@ static D3D12_RESOURCE_STATES GetResourceStates(nri::AccessBits accessBits, D3D12
 }
 
 
-void NrdInstance::DispatchCompute( FrameData* data)
+void NrdInstance::DispatchCompute(FrameData* data)
 {
     if (data == nullptr)
         return;
@@ -140,7 +140,7 @@ void NrdInstance::DispatchCompute( FrameData* data)
 
     data->commonSettings.frameIndex = frameIndex;
     frameIndex++;
-    
+
     m_NrdIntegration.SetCommonSettings(data->commonSettings);
     m_NrdIntegration.SetDenoiserSettings(m_SigmaId, &data->sigmaSettings);
     m_NrdIntegration.SetDenoiserSettings(m_ReblurId, &data->reblurSettings);
