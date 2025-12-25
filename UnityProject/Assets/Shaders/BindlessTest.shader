@@ -57,14 +57,13 @@ Shader "Custom/BindlessTest"
                 OUT.uv = TRANSFORM_TEX(IN.uv, _BaseMap);
                 return OUT;
             }
- 
+
 
             half4 frag(Varyings IN) : SV_Target
             {
-                
-               uint  numTextures = 4;
-               int baseTexture = 0;
-                
+                uint numTextures = 4;
+                int baseTexture = 0;
+
                 // half4 color = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, IN.uv) * _BaseColor;
                 // color = float4(0, 0, 0, 1);
 
@@ -73,8 +72,8 @@ Shader "Custom/BindlessTest"
                 texIdFlat = max(texIdFlat, 0);
 
                 float4 v = TextureTable[texIdFlat].Sample(my_linear_clamp_sampler, frac(IN.uv.xy * numTextures));
-                return v;
-
+                return float4(0.9, v.r, v.b, 1);
+  
                 // return color;
             }
             ENDHLSL

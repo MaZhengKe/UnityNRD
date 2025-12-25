@@ -2,6 +2,7 @@
 #include <d3d12.h>
 #include "Unity/IUnityLog.h"
 
+struct BindlessTexture;
 struct IUnityLog;
 // meetem hooks
 typedef HRESULT (*STDMETHODCALLTYPE D3D12_CreateDescriptorHeap)(
@@ -110,3 +111,22 @@ void InitHook(IUnityLog* logger);
 void HookDevice(ID3D12Device* device);
 
 void HookCommandList(ID3D12GraphicsCommandList* cmdList);
+
+#ifdef __cplusplus
+enum class BindlessTextureType {
+    None = 0,
+    Resource,
+    SRV
+};
+
+struct BindlessTexture {
+    void* handle;
+    BindlessTextureType type : 8;
+    unsigned minMip : 8;
+    unsigned maxMip : 8;
+    unsigned forceFormat : 8;
+    unsigned unused;
+};
+void SetBindlessTextures(int offset, unsigned numTextures, BindlessTexture* textures);
+#endif
+

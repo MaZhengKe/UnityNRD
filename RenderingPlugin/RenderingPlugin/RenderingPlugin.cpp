@@ -15,6 +15,7 @@
 #define LOG(msg) UNITY_LOG(s_Logger, msg)
 
 
+
 namespace
 {
     IUnityInterfaces* s_UnityInterfaces = nullptr;
@@ -172,5 +173,11 @@ void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateDenoiserResources(
     {
         it->second->UpdateResources(resources, count);
     }
+}
+
+
+UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API MeetemBindless_SetBindlessTextures(int offset, int numTextures, BindlessTexture* textures)
+{
+     SetBindlessTextures(offset, numTextures, textures);
 }
 }

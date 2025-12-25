@@ -654,12 +654,14 @@ void InitHook(IUnityLog* logger)
     __D3D12HOOKS_InitializeD3D12Offsets();
 }
 
+ID3D12Device* s_device;
 // --- 启动接口 ---
 void HookDevice(ID3D12Device* device)
 {
     static bool deviceHooked = false;
     if (deviceHooked) return;
 
+    s_device = device;
     // 2. 执行 Hook
     HookDeviceFunc(device, CreateDescriptorHeap);
     HookDeviceFunc(device, CreateRootSignature);
@@ -688,4 +690,116 @@ void HookCommandList(ID3D12GraphicsCommandList* cmdList)
 
     UnityLog::Debug("HookCommandList called.\n");
     cmdListHooked = true;
+}
+
+
+DXGI_FORMAT typeless_fmt_to_typed(DXGI_FORMAT format)
+{
+    switch (format)
+    {
+    case DXGI_FORMAT_R32G32B32A32_TYPELESS:
+        return DXGI_FORMAT_R32G32B32A32_UINT;
+
+    case DXGI_FORMAT_R32G32B32_TYPELESS:
+        return DXGI_FORMAT_R32G32B32_UINT;
+
+    case DXGI_FORMAT_R16G16B16A16_TYPELESS:
+        return DXGI_FORMAT_R16G16B16A16_UNORM;
+
+    case DXGI_FORMAT_R32G32_TYPELESS:
+        return DXGI_FORMAT_R32G32_UINT;
+
+    case DXGI_FORMAT_R32G8X24_TYPELESS:
+        return DXGI_FORMAT_X32_TYPELESS_G8X24_UINT;
+
+    case DXGI_FORMAT_R10G10B10A2_TYPELESS:
+        return DXGI_FORMAT_X32_TYPELESS_G8X24_UINT;
+
+    case DXGI_FORMAT_R8G8B8A8_TYPELESS:
+        return DXGI_FORMAT_R8G8B8A8_UNORM;
+
+    case DXGI_FORMAT_R16G16_TYPELESS:
+        return DXGI_FORMAT_R16G16_UNORM;
+
+    case DXGI_FORMAT_R32_TYPELESS:
+        return DXGI_FORMAT_R32_UINT;
+
+    case DXGI_FORMAT_R24G8_TYPELESS:
+        return DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+
+    case DXGI_FORMAT_R8G8_TYPELESS:
+        return DXGI_FORMAT_R8G8_UNORM;
+
+    case DXGI_FORMAT_R16_TYPELESS:
+        return DXGI_FORMAT_R16_UNORM;
+
+    case DXGI_FORMAT_R8_TYPELESS:
+        return DXGI_FORMAT_R8_UNORM;
+
+    case DXGI_FORMAT_BC1_TYPELESS:
+        return DXGI_FORMAT_BC1_UNORM;
+
+    case DXGI_FORMAT_BC2_TYPELESS:
+        return DXGI_FORMAT_BC2_UNORM;
+
+    case DXGI_FORMAT_BC3_TYPELESS:
+        return DXGI_FORMAT_BC3_UNORM;
+
+    case DXGI_FORMAT_BC4_TYPELESS:
+        return DXGI_FORMAT_BC4_UNORM;
+
+    case DXGI_FORMAT_BC5_TYPELESS:
+        return DXGI_FORMAT_BC5_UNORM;
+
+    case DXGI_FORMAT_B8G8R8A8_TYPELESS:
+        return DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
+
+    case DXGI_FORMAT_B8G8R8X8_TYPELESS:
+        return DXGI_FORMAT_B8G8R8X8_UNORM_SRGB;
+
+    case DXGI_FORMAT_BC6H_TYPELESS:
+        return DXGI_FORMAT_BC6H_UF16;
+
+    case DXGI_FORMAT_BC7_TYPELESS:
+        return DXGI_FORMAT_BC7_UNORM;
+
+    default:
+        return format;
+    }
+}
+
+
+void SetBindlessTextures(int offset, unsigned numTextures, BindlessTexture* textures)
+{
+    const auto& heaps = hookedDescriptorHeaps;
+
+    for (auto heap : heaps)
+    {
+        CD3DX12_CPU_DESCRIPTOR_HANDLE cpuHandle(heap->GetCPUDescriptorHandleForHeapStart());
+        cpuHandle.Offset(srvIncrement * srvBaseOffset);
+        cpuHandle.Offset(srvIncrement * offset);
+
+        for (unsigned i = 0; i < numTextures; i++)
+        {
+            auto t = textures[i];
+
+            auto texResource = (ID3D12Resource*)t.handle;
+            auto desc = texResource->GetDesc();
+
+            D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+            srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+            srvDesc.Format = t.forceFormat != 0 ? (DXGI_FORMAT)t.forceFormat : typeless_fmt_to_typed(desc.Format);
+            srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+            srvDesc.Texture2D.MostDetailedMip = t.minMip;
+            srvDesc.Texture2D.MipLevels = t.maxMip == 255u ? desc.MipLevels : (t.maxMip - t.minMip);
+            srvDesc.Texture2D.PlaneSlice = 0;
+            srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+
+            s_device->CreateShaderResourceView(texResource, &srvDesc, cpuHandle);
+
+            cpuHandle.Offset(srvIncrement);
+        }
+
+        UnityLog::Debug("SetBindlessTextures applied to heap %p at offset %d for %d textures.\n", heap, offset, numTextures);
+    }
 }
