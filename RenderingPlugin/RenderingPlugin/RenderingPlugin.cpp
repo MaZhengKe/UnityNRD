@@ -71,60 +71,6 @@ namespace
     }
 }
 
-static bool Unprotect(void* addr)
-{
-    const uint64_t pageSize = 4096;
-
-    DWORD oldProtect = 0;
-    auto protectResult = VirtualProtect((void*)((((size_t)addr) / pageSize) * pageSize), pageSize, PAGE_READWRITE, &oldProtect);
-    if (protectResult == 0)
-    {
-        // UnityLog::LogError("VirtualProtect failed, result: %d, old protect: %p\n", protectResult, (void*)(size_t)oldProtect);
-        LOG("[NRD Native] VirtualProtect failed.");
-        return false;
-    }
-
-    LOG("[NRD Native] VirtualProtect succeeded.");
-    return true;
-}
-
-template <typename T>
-static void** GetVTableEntryPtr(T* obj, int vtableOffset)
-{
-    size_t* vtable = *(size_t**)obj;
-    return (void**)((BYTE*)vtable + (vtableOffset));
-}
-
-template <typename T>
-static void* Hook(T* obj, int vtableOffset, void* newFunction)
-{
-    auto pptr = GetVTableEntryPtr<T>(obj, vtableOffset);
-    auto old = *pptr;
-    if (Unprotect(pptr))
-    {
-        *pptr = newFunction;
-    }
-
-    return old;
-}
-
-extern "C" static HRESULT STDMETHODCALLTYPE Hooked_CreateRootSignature(
-    ID3D12Device* This,
-    _In_ UINT nodeMask,
-    _In_reads_(blobLengthInBytes) const void* pBlobWithRootSignature,
-    _In_ SIZE_T blobLengthInBytes,
-    REFIID riid,
-    _COM_Outptr_ void** ppvRootSignature)
-{
-    LOG("[NRD Native] Hooked_CreateRootSignature called.");
-    return OrigCreateRootSignature(This, nodeMask, pBlobWithRootSignature, blobLengthInBytes, riid, ppvRootSignature);
-}
-
-static void StartHook(ID3D12Device* device)
-{
-    __D3D12HOOKS_InitializeD3D12Offsets();
-    HookDeviceFunc(CreateRootSignature);
-}
 // 加载Unity插件
 extern "C" {
 void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginLoad(IUnityInterfaces* unityInterfaces)
@@ -137,7 +83,7 @@ void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginLoad(IUnityInterfaces
     // 注册回调以接收图形设备事件
     s_Graphics->RegisterDeviceEventCallback(OnGraphicsDeviceEvent);
 
-    StartHook(s_d3d12->GetDevice());
+    StartD3D12Hooks(s_d3d12->GetDevice(), s_Logger);
 
     // 在插件加载时手动运行OnGraphicsDeviceEvent（initialize）
     OnGraphicsDeviceEvent(kUnityGfxDeviceEventInitialize);

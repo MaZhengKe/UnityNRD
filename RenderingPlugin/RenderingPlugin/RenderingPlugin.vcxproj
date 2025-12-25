@@ -21,7 +21,6 @@
   <ItemGroup>
     <ClInclude Include="D3D12Hooks.h" />
     <ClInclude Include="FrameData.h" />
-    <ClInclude Include="Hooks.h" />
     <ClInclude Include="NrdInstance.h" />
     <ClInclude Include="RenderSystem.h" />
     <ClInclude Include="Unity\IUnityGraphics.h" />

@@ -1,6 +1,8 @@
 #pragma once
 #include <d3d12.h>
+#include "Unity/IUnityLog.h"
 
+struct IUnityLog;
 // meetem hooks
 typedef HRESULT (*STDMETHODCALLTYPE D3D12_CreateDescriptorHeap)(
     ID3D12Device* device,
@@ -60,25 +62,29 @@ typedef HRESULT (STDMETHODCALLTYPE*D3D12_Reset)(
     _In_ ID3D12CommandAllocator* pAllocator,
     _In_opt_ ID3D12PipelineState* pInitialState);
 
-#ifndef D3D12_HOOKS_DECLARE
-
-#define RegisterHookFunc(Name) static D3D12_##Name Orig##Name = NULL;\
+#ifdef D3D12_HOOKS_IMPLEMENTATION
+// 在 D3D12HookManager.cpp 中定义
+#define RegisterHookFunc(Name) \
+D3D12_##Name Orig##Name = NULL; \
 extern "C" unsigned __D3D12_VTOFFS_##Name;
 
-#define HookDeviceFunc(Name) Orig##Name = (D3D12_##Name)\
-    Hook(device, __D3D12_VTOFFS_##Name, Hooked_##Name)
-
-#define HookCmdListFunc(Name) Orig##Name = (D3D12_##Name)\
-    Hook(cmdList, __D3D12_VTOFFS_##Name, Hooked_##Name)
-
 extern "C" void __D3D12HOOKS_InitializeD3D12Offsets();
-#else
+#elif defined(D3D12_HOOKS_DECLARE_OFFSETS)
+// 在 D3D12Hook_Offset.c 中使用
 #define RegisterHookFunc(Name) unsigned __D3D12_VTOFFS_##Name = 0;
-
-#define HookDeviceFunc(Name) __D3D12_VTOFFS_##Name = offsetof(ID3D12DeviceVtbl, ##Name)
-#define HookCmdListFunc(Name) __D3D12_VTOFFS_##Name = offsetof(ID3D12GraphicsCommandListVtbl, ##Name)
-
+#else
+// 在其他地方（如 Main.cpp 或 Hooked 函数中）引用
+#define RegisterHookFunc(Name) \
+extern D3D12_##Name Orig##Name; \
+extern "C" unsigned __D3D12_VTOFFS_##Name;
 #endif
+
+
+// 统一映射宏
+#define HookDeviceFunc(device, Name) Orig##Name = (D3D12_##Name)ApplyHook(device, __D3D12_VTOFFS_##Name, (void*)Hooked_##Name)
+#define HookCmdListFunc(list, Name)  Orig##Name = (D3D12_##Name)ApplyHook(list, __D3D12_VTOFFS_##Name, (void*)Hooked_##Name)
+
+ 
 
 // device
 RegisterHookFunc(CreateDescriptorHeap)
@@ -97,3 +103,6 @@ RegisterHookFunc(SetGraphicsRootSignature)
 RegisterHookFunc(Reset)
 
 #undef FuncFunc
+
+// 管理层提供的接口
+void StartD3D12Hooks(ID3D12Device* device, IUnityLog* logger);
