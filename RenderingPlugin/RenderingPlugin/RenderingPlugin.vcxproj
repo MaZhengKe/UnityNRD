@@ -23,6 +23,7 @@
     <ClInclude Include="FrameData.h" />
     <ClInclude Include="NrdInstance.h" />
     <ClInclude Include="RenderSystem.h" />
+    <ClInclude Include="UnityLog.h" />
     <ClInclude Include="Unity\IUnityGraphics.h" />
     <ClInclude Include="Unity\IUnityGraphicsD3D12.h" />
     <ClInclude Include="Unity\IUnityInterface.h" />
@@ -34,6 +35,7 @@
     <ClCompile Include="NrdInstance.cpp" />
     <ClCompile Include="RenderingPlugin.cpp" />
     <ClCompile Include="RenderSystem.cpp" />
+    <ClCompile Include="UnityLog.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>

@@ -36,7 +36,7 @@ MonoBehaviour:
     m_Bits: 0
   m_OpaqueLayerMask:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 4294967295
   m_TransparentLayerMask:
     serializedVersion: 2
     m_Bits: 0
@@ -67,7 +67,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f50908f0e9bf42149891b36684931380, type: 3}
   m_Name: PathTracingFeature
   m_EditorClassIdentifier: Assembly-CSharp::PathTracing.PathTracingFeature
-  m_Active: 1
+  m_Active: 0
   opaqueTracingShader: {fileID: 4807578003741378534, guid: 71faa22953dc9834daf36cc38966c196, type: 3}
   transparentTracingShader: {fileID: 4807578003741378534, guid: d207e5fb066a4b579353785310fd0dea, type: 3}
   compositionComputeShader: {fileID: 7200000, guid: 6b0c89c26f4363a4781550cf86801786, type: 3}

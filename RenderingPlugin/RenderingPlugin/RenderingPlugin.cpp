@@ -4,10 +4,12 @@
 #include "NrdInstance.h"
 #include "Unity/IUnityLog.h"
 #include "D3D12Hooks.h"
+#include "UnityLog.h"
 
 
 #pragma comment(lib, "NRD.lib")
 #pragma comment(lib, "NRI.lib")
+#pragma comment(lib, "d3d12.lib")
 
 
 #define LOG(msg) UNITY_LOG(s_Logger, msg)
@@ -80,6 +82,8 @@ void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginLoad(IUnityInterfaces
     s_Graphics = s_UnityInterfaces->Get<IUnityGraphics>();
     IUnityGraphicsD3D12v8* s_d3d12 = s_UnityInterfaces->Get<IUnityGraphicsD3D12v8>();
     s_Logger = s_UnityInterfaces->Get<IUnityLog>();
+    
+    UnityLog::Initialize(s_UnityInterfaces);
     // 注册回调以接收图形设备事件
     s_Graphics->RegisterDeviceEventCallback(OnGraphicsDeviceEvent);
 
