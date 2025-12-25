@@ -1,6 +1,7 @@
 ﻿#include <Windows.h>
 #define D3D12_HOOKS_IMPLEMENTATION // 关键：让宏在此定义变量
 #include <cstdint>
+#include <d3dx12_root_signature.h>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -9,8 +10,8 @@
 #include "UnityLog.h"
 
 // 假设我们依然需要日志，这里需要引用外部日志句柄或定义
-IUnityLog* s_Logger;
-#define LOG(msg) if(s_Logger) s_Logger->Log(kUnityLogTypeLog, msg, __FILE__, __LINE__)
+// IUnityLog* s_Logger;
+// #define LOG(msg) if(s_Logger) s_Logger->Log(kUnityLogTypeLog, msg, __FILE__, __LINE__)
 
 // --- 工具函数 ---
 static bool Unprotect(void* addr)
@@ -34,6 +35,101 @@ static void* ApplyHook(void* obj, int vtableOffset, void* newFunction)
     return oldFunc;
 }
 
+const uint32_t srvBindlessDescriptorStart = 31u;
+const uint32_t numAdditionalSrv = 10u;
+
+
+static void FreeDeepCopy(D3D12_ROOT_SIGNATURE_DESC* p)
+{
+    if (p->pParameters != nullptr)
+    {
+        free((void*)p->pParameters);
+        p->pParameters = nullptr;
+    }
+}
+
+
+struct HookedRootSignature
+{
+    unsigned descriptorId;
+    unsigned numMaxBindings;
+};
+
+
+static std::unordered_map<size_t, HookedRootSignature> hookedDescriptors;
+
+static const GUID MeetemBindlessData =
+    {0xcad4de65, 0x63e8, 0x4cf6, {0xb8, 0x2c, 0x6f, 0x7e, 0xe6, 0x77, 0x63, 0x33}};
+
+
+struct CommandListStateData
+{
+    unsigned isInHookedCmpRootSig : 1;
+    unsigned isInHookedGfxRootSig : 1;
+
+    unsigned isHookedCmpDescSetAssigned : 1;
+    unsigned isHookedGfxDescSetAssigned : 1;
+
+    unsigned assignedHookedHeap : 16;
+
+    unsigned bindlessCmpSrvDescId;
+    unsigned bindlessGfxSrvDescId;
+    //unsigned remains;
+};
+
+static inline CommandListStateData GetCommandListState(ID3D12GraphicsCommandList* cmdList)
+{
+    if (cmdList == nullptr)
+    {
+        return {};
+    }
+
+    UINT dsize = sizeof(CommandListStateData);
+    CommandListStateData ret;
+    auto res = cmdList->GetPrivateData(MeetemBindlessData, &dsize, &ret);
+    if ((FAILED(res)) || (dsize != sizeof(CommandListStateData)))
+        return {};
+
+    return ret;
+}
+
+const unsigned NoBindless = 0;
+
+static inline bool IsCommandStateHadBindless(CommandListStateData dt)
+{
+    return (dt.bindlessCmpSrvDescId != NoBindless) | (dt.bindlessGfxSrvDescId != NoBindless) | (dt.isInHookedCmpRootSig) | (dt.isInHookedGfxRootSig) | (dt.isHookedCmpDescSetAssigned) | (dt.isHookedGfxDescSetAssigned) | (dt.
+        assignedHookedHeap);
+}
+
+static inline bool SetCommandListState(ID3D12GraphicsCommandList* cmdList, CommandListStateData state)
+{
+    if (cmdList == nullptr)
+    {
+        return true;
+    }
+
+    UINT dsize = sizeof(CommandListStateData);
+    CommandListStateData ret;
+    auto res = cmdList->SetPrivateData(MeetemBindlessData, dsize, &state);
+    return !FAILED(res);
+}
+
+
+template <class T>
+static inline bool TryGetBindlessData(ID3D12Object* iface, T& outputSig)
+{
+    if (iface == nullptr)
+    {
+        outputSig = {};
+        return false;
+    }
+
+    UINT dsize = sizeof(T);
+    auto res = iface->GetPrivateData(MeetemBindlessData, &dsize, &outputSig);
+    return !FAILED(res) && dsize == sizeof(T);
+}
+
+
 // --- Hooked 函数实现 ---
 extern "C" static HRESULT STDMETHODCALLTYPE Hooked_CreateGraphicsPipelineState(
     ID3D12Device* This,
@@ -42,19 +138,40 @@ extern "C" static HRESULT STDMETHODCALLTYPE Hooked_CreateGraphicsPipelineState(
     _COM_Outptr_ void** ppPipelineState
 )
 {
-    // LOG("[HOOK Native] Hooked_CreateGraphicsPipelineState called.");
-    return OrigCreateGraphicsPipelineState(This, pDesc, riid, ppPipelineState);
+    HookedRootSignature data;
+    auto hasHookedRootsig = false;
+
+
+    UnityLog::Debug("CreateGraphicsPipelineState creating with root sig %p\n", pDesc->pRootSignature);
+
+    if (pDesc->pRootSignature != nullptr)
+    {
+        hasHookedRootsig = TryGetBindlessData(pDesc->pRootSignature, data);
+        if (hasHookedRootsig)
+        {
+            UnityLog::Debug("CreateGraphicsPipelineState found using the hooked root signature\n");
+        }
+    }
+
+    auto res = OrigCreateGraphicsPipelineState(This, pDesc, riid, ppPipelineState);
+    if (!FAILED(res) && hasHookedRootsig)
+    {
+        ID3D12PipelineState* state = (ID3D12PipelineState*)*ppPipelineState;
+        state->SetPrivateData(MeetemBindlessData, sizeof(HookedRootSignature), &data);
+    }
+
+    return res;
 }
 
-extern "C" static HRESULT STDMETHODCALLTYPE Hooked_CreateComputePipelineState(
-    ID3D12Device* This,
-    _In_ const D3D12_COMPUTE_PIPELINE_STATE_DESC* pDesc,
-    REFIID riid,
-    _COM_Outptr_ void** ppPipelineState)
-{
-    // LOG("[HOOK Native] Hooked_CreateComputePipelineState called.");
-    return OrigCreateComputePipelineState(This, pDesc, riid, ppPipelineState);
-}
+// extern "C" static HRESULT STDMETHODCALLTYPE Hooked_CreateComputePipelineState(
+//     ID3D12Device* This,
+//     _In_ const D3D12_COMPUTE_PIPELINE_STATE_DESC* pDesc,
+//     REFIID riid,
+//     _COM_Outptr_ void** ppPipelineState)
+// {
+//     // LOG("[HOOK Native] Hooked_CreateComputePipelineState called.");
+//     return OrigCreateComputePipelineState(This, pDesc, riid, ppPipelineState);
+// }
 
 extern "C" static HRESULT STDMETHODCALLTYPE Hooked_Reset(
     ID3D12GraphicsCommandList1* This,
@@ -63,6 +180,8 @@ extern "C" static HRESULT STDMETHODCALLTYPE Hooked_Reset(
 )
 {
     // LOG("[HOOK Native] Hooked_Reset called.");
+
+    SetCommandListState(This, {});
     return OrigReset(This, pAllocator, pInitialState);
 }
 
@@ -122,34 +241,7 @@ static D3D12_ROOT_SIGNATURE_DESC DeepCopy(const D3D12_ROOT_SIGNATURE_DESC* origi
     return o;
 }
 
-
-const uint32_t srvBindlessDescriptorStart = 31u;
-const uint32_t numAdditionalSrv = 10u;
-
-
-static void FreeDeepCopy(D3D12_ROOT_SIGNATURE_DESC* p)
-{
-    if (p->pParameters != nullptr)
-    {
-        free((void*)p->pParameters);
-        p->pParameters = nullptr;
-    }
-}
-
-
-struct HookedRootSignature
-{
-    unsigned descriptorId;
-    unsigned numMaxBindings;
-};
-
-
-static std::unordered_map<size_t, HookedRootSignature> hookedDescriptors;
-
-static const GUID MeetemBindlessData =
-    {0xcad4de65, 0x63e8, 0x4cf6, {0xb8, 0x2c, 0x6f, 0x7e, 0xe6, 0x77, 0x63, 0x33}};
-
-
+// 判断并修改根签名以支持 Bindless 纹理
 extern "C" HRESULT STDMETHODCALLTYPE Hooked_CreateRootSignature(
     ID3D12Device* This, _In_ UINT nodeMask,
     _In_reads_(blobLengthInBytes) const void* pBlobWithRootSignature,
@@ -157,16 +249,13 @@ extern "C" HRESULT STDMETHODCALLTYPE Hooked_CreateRootSignature(
     REFIID riid,
     _COM_Outptr_ void** ppvRootSignature)
 {
-    // 你的逻辑
-    // LOG("[HOOK Native] Hooked_CreateRootSignature called.");
-
     ID3D12RootSignatureDeserializer* deserializer;
     auto hr = D3D12CreateRootSignatureDeserializer(pBlobWithRootSignature, blobLengthInBytes, IID_PPV_ARGS(&deserializer));
 
 
     if (FAILED(hr))
     {
-        LOG("[HOOK Native] Failed to create root signature deserializer.");
+        UnityLog::Debug(" Failed to create root signature deserializer.");
         return OrigCreateRootSignature(This, nodeMask, pBlobWithRootSignature, blobLengthInBytes, riid, ppvRootSignature);
     }
 
@@ -352,25 +441,25 @@ const uint32_t mainDescHeapMagic = 262144u;
 
 
 uint32_t srvBaseOffset;
+uint32_t srvIncrement;
 
 std::vector<ID3D12DescriptorHeap*> srvDescriptorHeaps{};
 std::vector<ID3D12DescriptorHeap*> hookedDescriptorHeaps{};
 
+// 监听创建堆-把srv堆变大
 extern "C" static HRESULT STDMETHODCALLTYPE Hooked_CreateDescriptorHeap(ID3D12Device* device, _In_ D3D12_DESCRIPTOR_HEAP_DESC* pDescriptorHeapDesc,
                                                                         REFIID riid,
                                                                         _COM_Outptr_ void** ppvHeap)
 {
-    LOG("[HOOK Native] Hooked_CreateDescriptorHeap called.");
+    UnityLog::Debug("Hooked_CreateDescriptorHeap called.");
 
     if (pDescriptorHeapDesc->Type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)
     {
-        auto ptr = (ID3D12DescriptorHeap*)*ppvHeap;
-
         uint32_t additional = 1024;
         bool hooked = false;
 
         UINT num = pDescriptorHeapDesc->NumDescriptors;
-        LOG(("[HOOK Native] Number of Descriptors: " + std::to_string(num)).c_str());
+        UnityLog::Debug(" Number of Descriptors: %d", num);
 
         if (pDescriptorHeapDesc->NumDescriptors >= mainDescHeapMagic)
         {
@@ -381,11 +470,13 @@ extern "C" static HRESULT STDMETHODCALLTYPE Hooked_CreateDescriptorHeap(ID3D12De
 
         auto res = OrigCreateDescriptorHeap(device, pDescriptorHeapDesc, riid, ppvHeap);
 
+        auto ptr = (ID3D12DescriptorHeap*)*ppvHeap;
+
         srvDescriptorHeaps.push_back(ptr);
         if (hooked)
         {
             hookedDescriptorHeaps.push_back(ptr);
-            LOG(("[HOOK Native] Hooked CBV_SRV_UAV Descriptor Heap created for pointer :" + std::to_string((uint64_t)(*ppvHeap))).c_str());
+            UnityLog::Debug("Hooked CBV_SRV_UAV Descriptor Heap created for pointer : %p, total descriptors: %d\n", ptr, pDescriptorHeapDesc->NumDescriptors);
         }
 
         return res;
@@ -401,40 +492,164 @@ static void STDMETHODCALLTYPE Hooked_SetGraphicsRootSignature(ID3D12GraphicsComm
     OrigSetGraphicsRootSignature(This, pRootSignature);
 }
 
-extern "C" static void STDMETHODCALLTYPE Hooked_SetComputeRootSignature(ID3D12GraphicsCommandList* This,
-                                                                        _In_opt_ ID3D12RootSignature* pRootSignature)
-{
-    // LOG("[HOOK Native] Hooked_SetComputeRootSignature called.");
-    OrigSetComputeRootSignature(This, pRootSignature);
-}
+// extern "C" static void STDMETHODCALLTYPE Hooked_SetComputeRootSignature(ID3D12GraphicsCommandList* This,
+//                                                                         _In_opt_ ID3D12RootSignature* pRootSignature)
+// {
+//     // LOG("[HOOK Native] Hooked_SetComputeRootSignature called.");
+//     OrigSetComputeRootSignature(This, pRootSignature);
+// }
+
 
 extern "C" static void STDMETHODCALLTYPE Hooked_SetDescriptorHeaps(ID3D12GraphicsCommandList10* This,
                                                                    _In_ UINT NumDescriptorHeaps,
                                                                    _In_reads_(NumDescriptorHeaps) ID3D12DescriptorHeap* const* ppDescriptorHeaps)
 {
-    // LOG("[HOOK Native] Hooked_SetDescriptorHeaps called.");
-    OrigSetDescriptorHeaps(This, NumDescriptorHeaps, ppDescriptorHeaps);
+    // 1. 获取当前 CommandList 的状态跟踪对象
+    // 因为会有多个线程同时记录不同的 CommandList，所以需要 dt 来记录当前这个列表是否开启了 Bindless 等信息
+    auto dt = GetCommandListState(This);
+    // UnityLog::Debug("Setting descriptor heaps: %d %d %d\n", NumDescriptorHeaps, dt.isInHookedCmpRootSig, dt.isInHookedGfxRootSig);
+
+    // 2. 防护措施：如果我们还没成功 Hook 到任何堆，就直接走原始逻辑
+    if (hookedDescriptorHeaps.empty())
+    {
+        UnityLog::LogWarning("SetDescriptorHeaps is called, but no srvHeap is set.\n");
+        OrigSetDescriptorHeaps(This, NumDescriptorHeaps, ppDescriptorHeaps);
+        return;
+    }
+
+
+    ID3D12DescriptorHeap* heaps[128];
+
+    // 4. 处理空绑定情况：如果 Unity 想要取消绑定所有堆
+    if (ppDescriptorHeaps == nullptr || NumDescriptorHeaps == 0u)
+    {
+        // 如果之前处于 Bindless 状态，现在要清空它
+        if (IsCommandStateHadBindless(dt))
+        {
+            dt.isHookedCmpDescSetAssigned = false;
+            dt.isHookedGfxDescSetAssigned = false;
+            dt.assignedHookedHeap = 0;
+            SetCommandListState(This, dt);
+        }
+
+        return OrigSetDescriptorHeaps(This, NumDescriptorHeaps, ppDescriptorHeaps);
+    }
+
+    unsigned assigned = 0;
+    bool hasSrvHeap = false;
+
+    const auto& srvDescHeaps = srvDescriptorHeaps;
+    const auto& hookedHeaps = hookedDescriptorHeaps;
+
+    for (int i = 0; i < NumDescriptorHeaps; i++)
+    {
+        auto h = ppDescriptorHeaps[i];
+        heaps[i] = h;
+
+        if (h != nullptr)
+        {
+            for (auto v : srvDescHeaps)
+            {
+                if (v == h)
+                {
+                    hasSrvHeap = true;
+                }
+            }
+
+            for (unsigned k = 0; k < hookedHeaps.size(); k++)
+            {
+                auto v = hookedHeaps[k];
+                if (v == h)
+                {
+                    assigned = k + 1;
+                }
+            }
+        }
+    }
+
+    if (!assigned && !hasSrvHeap)
+    {
+        heaps[NumDescriptorHeaps] = hookedHeaps[0];
+        NumDescriptorHeaps++;
+        assigned = 1;
+    }
+
+    // 找到了绑定的堆，更新状态
+
+
+    dt.assignedHookedHeap = assigned;
+    dt.isHookedCmpDescSetAssigned = false;
+    dt.isHookedGfxDescSetAssigned = false;
+    // 记录
+    SetCommandListState(This, dt);
+
+    // 传入修改后的堆数组
+    return OrigSetDescriptorHeaps(This, NumDescriptorHeaps, heaps);
 }
 
-extern "C" static void STDMETHODCALLTYPE Hooked_SetComputeRootDescriptorTable(ID3D12CommandList* list,
-                                                                              _In_ UINT RootParameterIndex,
-                                                                              _In_ D3D12_GPU_DESCRIPTOR_HANDLE BaseDescriptor)
+// extern "C" static void STDMETHODCALLTYPE Hooked_SetComputeRootDescriptorTable(ID3D12CommandList* list,
+//                                                                               _In_ UINT RootParameterIndex,
+//                                                                               _In_ D3D12_GPU_DESCRIPTOR_HANDLE BaseDescriptor)
+// {
+//     // LOG("[HOOK Native] Hooked_SetComputeRootDescriptorTable called.");
+//     OrigSetComputeRootDescriptorTable(list, RootParameterIndex, BaseDescriptor);
+// }
+
+int currentFrameBindlessOffset;
+
+inline int getCurrentOffset()
 {
-    // LOG("[HOOK Native] Hooked_SetComputeRootDescriptorTable called.");
-    OrigSetComputeRootDescriptorTable(list, RootParameterIndex, BaseDescriptor);
+    return currentFrameBindlessOffset;
 }
+
 
 extern "C" static void STDMETHODCALLTYPE Hooked_SetGraphicsRootDescriptorTable(ID3D12GraphicsCommandList* list,
                                                                                _In_ UINT RootParameterIndex,
                                                                                _In_ D3D12_GPU_DESCRIPTOR_HANDLE BaseDescriptor)
 {
-    // LOG("[HOOK Native] Hooked_SetGraphicsRootDescriptorTable called.");
+    auto gfxList = (ID3D12GraphicsCommandList*)list;
+
+    auto dt = GetCommandListState(gfxList);
+    // UnityLog::Debug("Set graphics root descriptor table: %d %d %d %d\n", RootParameterIndex, dt.isInHookedGfxRootSig, dt.assignedHookedHeap, dt.bindlessGfxSrvDescId);
+
+
+    if (hookedDescriptorHeaps.empty())
+    {
+        UnityLog::LogWarning("SetGraphicsRootDescriptorTable is called, but no srvHeap is set.\n");
+        OrigSetGraphicsRootDescriptorTable(list, RootParameterIndex, BaseDescriptor);
+        return;
+    }
+
     OrigSetGraphicsRootDescriptorTable(list, RootParameterIndex, BaseDescriptor);
+
+
+    if ((dt.isInHookedGfxRootSig)
+        // For graphics Unity set descriptor heaps somewhere else, 
+        // without assigning the heaps after root sig changed
+        //& (dt.assignedHookedHeap) 
+        & (dt.bindlessGfxSrvDescId != NoBindless))
+    {
+        auto targetIdx = dt.bindlessGfxSrvDescId - 1;
+
+        if (RootParameterIndex == (targetIdx) || !dt.isHookedGfxDescSetAssigned)
+        {
+            dt.isHookedGfxDescSetAssigned = true;
+            SetCommandListState(gfxList, dt);
+
+            UnityLog::Debug("Set graphics root descriptor table for bindless: (hooked %d) -> %d with offset %d\n", RootParameterIndex, targetIdx, srvBaseOffset);
+
+            auto assignedHeap = hookedDescriptorHeaps[dt.assignedHookedHeap - 1];
+            CD3DX12_GPU_DESCRIPTOR_HANDLE gpuHandle(assignedHeap->GetGPUDescriptorHandleForHeapStart());
+            gpuHandle.Offset(srvBaseOffset * srvIncrement);
+            gpuHandle.Offset(getCurrentOffset() * srvIncrement);
+
+            OrigSetGraphicsRootDescriptorTable(list, targetIdx, gpuHandle);
+        }
+    }
 }
 
 void InitHook(IUnityLog* logger)
 {
-    s_Logger = logger;
     // 1. 初始化偏移量 (调用 C 代码)
     __D3D12HOOKS_InitializeD3D12Offsets();
 }
@@ -448,9 +663,13 @@ void HookDevice(ID3D12Device* device)
     // 2. 执行 Hook
     HookDeviceFunc(device, CreateDescriptorHeap);
     HookDeviceFunc(device, CreateRootSignature);
-    HookDeviceFunc(device, CreateComputePipelineState);
+    // HookDeviceFunc(device, CreateComputePipelineState);
     HookDeviceFunc(device, CreateGraphicsPipelineState);
 
+
+    srvIncrement = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+    UnityLog::Debug("HookDevice called, srvIncrement: %d\n", srvIncrement);
     deviceHooked = true;
 }
 
@@ -461,11 +680,12 @@ void HookCommandList(ID3D12GraphicsCommandList* cmdList)
 
     // 2. 执行 Hook
     HookCmdListFunc(cmdList, SetDescriptorHeaps);
-    HookCmdListFunc(cmdList, SetComputeRootDescriptorTable);
+    // HookCmdListFunc(cmdList, SetComputeRootDescriptorTable);
     HookCmdListFunc(cmdList, SetGraphicsRootDescriptorTable);
-    HookCmdListFunc(cmdList, SetComputeRootSignature);
+    // HookCmdListFunc(cmdList, SetComputeRootSignature);
     HookCmdListFunc(cmdList, SetGraphicsRootSignature);
     HookCmdListFunc(cmdList, Reset);
 
+    UnityLog::Debug("HookCommandList called.\n");
     cmdListHooked = true;
 }

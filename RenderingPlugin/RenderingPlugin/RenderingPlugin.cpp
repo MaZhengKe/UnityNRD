@@ -20,6 +20,7 @@ namespace
     IUnityInterfaces* s_UnityInterfaces = nullptr;
     IUnityGraphics* s_Graphics = nullptr;
     IUnityLog* s_Logger = nullptr;
+    IUnityGraphicsD3D12v8* s_d3d12 = nullptr;
     std::unordered_map<int32_t, NrdInstance*> g_Instances;
     std::mutex g_InstanceMutex;
     int32_t g_NextInstanceId = 1;
@@ -32,6 +33,22 @@ namespace
         if (eventType == kUnityGfxDeviceEventInitialize)
         {
             RenderSystem::Get().Initialize(s_UnityInterfaces);
+
+            InitHook(s_Logger);
+            ID3D12Device* device = s_d3d12->GetDevice();
+            HookDevice(device);
+
+            ID3D12CommandAllocator* commandAllocator = nullptr;
+            device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,IID_PPV_ARGS(&commandAllocator)
+            );
+
+            ID3D12CommandList* commandList;
+            device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, commandAllocator, nullptr,IID_PPV_ARGS(&commandList)
+            );
+            HookCommandList((ID3D12GraphicsCommandList*)commandList);
+
+            commandList->Release();
+            commandAllocator->Release();
         }
 
         // 让图形API处理与设备相关的事件
@@ -80,31 +97,15 @@ void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginLoad(IUnityInterfaces
     s_UnityInterfaces = unityInterfaces;
     // 获取IUnityGraphics接口
     s_Graphics = s_UnityInterfaces->Get<IUnityGraphics>();
-    IUnityGraphicsD3D12v8* s_d3d12 = s_UnityInterfaces->Get<IUnityGraphicsD3D12v8>();
+    s_d3d12 = s_UnityInterfaces->Get<IUnityGraphicsD3D12v8>();
     s_Logger = s_UnityInterfaces->Get<IUnityLog>();
-    
+
     UnityLog::Initialize(s_UnityInterfaces);
     // 注册回调以接收图形设备事件
     s_Graphics->RegisterDeviceEventCallback(OnGraphicsDeviceEvent);
 
-    InitHook(s_Logger);
-    ID3D12Device* device = s_d3d12->GetDevice();
-    HookDevice(device);
-
-    ID3D12CommandAllocator* commandAllocator = nullptr;
-    device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,IID_PPV_ARGS(&commandAllocator)
-    );
-
-    ID3D12CommandList* commandList;
-    device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, commandAllocator, nullptr,IID_PPV_ARGS(&commandList)
-    );
-    HookCommandList((ID3D12GraphicsCommandList*)commandList);
-
-    commandList->Release();
-    commandAllocator->Release();
-
     // 在插件加载时手动运行OnGraphicsDeviceEvent（initialize）
-    OnGraphicsDeviceEvent(kUnityGfxDeviceEventInitialize);
+    // OnGraphicsDeviceEvent(kUnityGfxDeviceEventInitialize);
 
     LOG("[NRD Native] UnityPluginLoad completed.");
 }
@@ -122,6 +123,10 @@ void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginUnload()
 UnityRenderingEventAndData UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetRenderEventAndDataFunc()
 {
     return OnRenderEventAndData;
+}
+
+UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API Init()
+{
 }
 
 // C# 构造时调用

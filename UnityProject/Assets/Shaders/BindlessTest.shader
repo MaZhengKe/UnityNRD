@@ -42,7 +42,7 @@ Shader "Custom/BindlessTest"
 
             float a;
 
-            Texture2D TextureTable[2048] : register(t31, space0);
+            Texture2D TextureTable[10] : register(t31, space0);
             SamplerState my_linear_clamp_sampler;
 
             CBUFFER_START(UnityPerMaterial)
@@ -65,8 +65,8 @@ Shader "Custom/BindlessTest"
                uint  numTextures = 4;
                int baseTexture = 0;
                 
-                half4 color = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, IN.uv) * _BaseColor;
-                color = float4(0, 0, 0, 1);
+                // half4 color = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, IN.uv) * _BaseColor;
+                // color = float4(0, 0, 0, 1);
 
                 float2 textureIds = IN.uv.xy * numTextures;
                 int texIdFlat = int(int(textureIds.x) + int(textureIds.y) * numTextures) + baseTexture;
@@ -75,7 +75,7 @@ Shader "Custom/BindlessTest"
                 float4 v = TextureTable[texIdFlat].Sample(my_linear_clamp_sampler, frac(IN.uv.xy * numTextures));
                 return v;
 
-                return color;
+                // return color;
             }
             ENDHLSL
         }
