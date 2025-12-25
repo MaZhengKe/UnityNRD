@@ -1,4 +1,4 @@
-// This file must be C file, not CPP.
+﻿// This file must be C file, not CPP.
 
 #include "d3d12.h"
 #define D3D12_HOOKS_DECLARE_OFFSETS // 关键：切换宏模式

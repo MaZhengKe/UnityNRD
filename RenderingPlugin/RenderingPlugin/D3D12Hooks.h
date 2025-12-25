@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <d3d12.h>
 #include "Unity/IUnityLog.h"
 
@@ -105,4 +105,8 @@ RegisterHookFunc(Reset)
 #undef FuncFunc
 
 // 管理层提供的接口
-void StartD3D12Hooks(ID3D12Device* device, IUnityLog* logger);
+void InitHook(IUnityLog* logger);
+
+void HookDevice(ID3D12Device* device);
+
+void HookCommandList(ID3D12GraphicsCommandList* cmdList);
