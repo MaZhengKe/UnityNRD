@@ -9,10 +9,6 @@
 #include "D3D12Hooks.h"
 #include "UnityLog.h"
 
-// 假设我们依然需要日志，这里需要引用外部日志句柄或定义
-// IUnityLog* s_Logger;
-// #define LOG(msg) if(s_Logger) s_Logger->Log(kUnityLogTypeLog, msg, __FILE__, __LINE__)
-
 // --- 工具函数 ---
 static bool Unprotect(void* addr)
 {
@@ -36,7 +32,7 @@ static void* ApplyHook(void* obj, int vtableOffset, void* newFunction)
 }
 
 const uint32_t srvBindlessDescriptorStart = 31u;
-const uint32_t numAdditionalSrv = 10u;
+const uint32_t numAdditionalSrv = 600u;
 
 
 static void FreeDeepCopy(D3D12_ROOT_SIGNATURE_DESC* p)
@@ -131,6 +127,8 @@ static inline bool TryGetBindlessData(ID3D12Object* iface, T& outputSig)
 
 
 // --- Hooked 函数实现 ---
+
+// 监听创建图形管线状态-关联根签名数据
 extern "C" static HRESULT STDMETHODCALLTYPE Hooked_CreateGraphicsPipelineState(
     ID3D12Device* This,
     _In_ const D3D12_GRAPHICS_PIPELINE_STATE_DESC* pDesc,
@@ -142,7 +140,7 @@ extern "C" static HRESULT STDMETHODCALLTYPE Hooked_CreateGraphicsPipelineState(
     auto hasHookedRootsig = false;
 
 
-    UnityLog::Debug("CreateGraphicsPipelineState creating with root sig %p\n", pDesc->pRootSignature);
+    // UnityLog::Debug("CreateGraphicsPipelineState creating with root sig %p\n", pDesc->pRootSignature);
 
     if (pDesc->pRootSignature != nullptr)
     {
@@ -349,11 +347,12 @@ extern "C" HRESULT STDMETHODCALLTYPE Hooked_CreateRootSignature(
         }
     }
 
+    // 如果不需要添加新的 SRV 描述符表，或者被标记为忽略，直接返回原始根签名
     if (ignore || !needPlaceSrv)
     {
         FreeDeepCopy(&rootSig);
         auto ret = OrigCreateRootSignature(This, nodeMask, pBlobWithRootSignature, blobLengthInBytes, riid, ppvRootSignature);
-        UnityLog::Debug("Created root desc (ignore || !needPlaceSrv) [n] %p, %p\n", *ppvRootSignature, (void*)(size_t)(ret));
+        // UnityLog::Debug("Created root desc (ignore || !needPlaceSrv) [n] %p, %p\n", *ppvRootSignature, (void*)(size_t)(ret));
 
         return ret;
     }
@@ -365,7 +364,7 @@ extern "C" HRESULT STDMETHODCALLTYPE Hooked_CreateRootSignature(
 
     D3D12_DESCRIPTOR_RANGE newRange{};
     newRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-    newRange.NumDescriptors = 10;
+    newRange.NumDescriptors = 600;
     newRange.BaseShaderRegister = srvBindlessDescriptorStart;
     newRange.RegisterSpace = 0;
     newRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
@@ -488,7 +487,26 @@ extern "C" static HRESULT STDMETHODCALLTYPE Hooked_CreateDescriptorHeap(ID3D12De
 static void STDMETHODCALLTYPE Hooked_SetGraphicsRootSignature(ID3D12GraphicsCommandList* This,
                                                               _In_opt_ ID3D12RootSignature* pRootSignature)
 {
-    // LOG("[HOOK Native] Hooked_SetGraphicsRootSignature called.");
+    HookedRootSignature d{};
+    auto hasDescHook = TryGetBindlessData(pRootSignature, d);
+    auto dt = GetCommandListState(This);
+
+    if (!hasDescHook) {
+        if (IsCommandStateHadBindless(dt)) {
+            dt.isInHookedGfxRootSig = false;
+            dt.isHookedGfxDescSetAssigned = false;
+            dt.bindlessGfxSrvDescId = NoBindless;
+            SetCommandListState(This, dt);
+        }
+    }
+    else {
+        // UnityLog::Debug("[SetGraphicsRootSignature] Found hooked root sig: %p, descriptorId: %d\n", pRootSignature, d.descriptorId);
+        dt.isInHookedGfxRootSig = hasDescHook;
+        dt.isHookedGfxDescSetAssigned = false;
+        dt.bindlessGfxSrvDescId = hasDescHook ? (d.descriptorId + 1) : NoBindless;
+        SetCommandListState(This, dt);
+    }
+
     OrigSetGraphicsRootSignature(This, pRootSignature);
 }
 
@@ -636,7 +654,7 @@ extern "C" static void STDMETHODCALLTYPE Hooked_SetGraphicsRootDescriptorTable(I
             dt.isHookedGfxDescSetAssigned = true;
             SetCommandListState(gfxList, dt);
 
-            UnityLog::Debug("Set graphics root descriptor table for bindless: (hooked %d) -> %d with offset %d\n", RootParameterIndex, targetIdx, srvBaseOffset);
+            // UnityLog::Debug("Set graphics root descriptor table for bindless: (hooked %d) -> %d with offset %d\n", RootParameterIndex, targetIdx, srvBaseOffset);
 
             auto assignedHeap = hookedDescriptorHeaps[dt.assignedHookedHeap - 1];
             CD3DX12_GPU_DESCRIPTOR_HANDLE gpuHandle(assignedHeap->GetGPUDescriptorHandleForHeapStart());

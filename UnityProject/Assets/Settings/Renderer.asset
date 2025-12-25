@@ -77,7 +77,7 @@ MonoBehaviour:
     denoisingRange: 1000
     splitScreen: 0
     isBaseColorMetalnessAvailable: 1
-    planeDistanceSensitivity: 0.131
+    planeDistanceSensitivity: 0.212
     maxStabilizedFrameNum: 5
     showMode: 14
     showMV: 0

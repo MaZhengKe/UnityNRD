@@ -2,8 +2,8 @@ Shader "Custom/BindlessTest"
 {
     Properties
     {
-        [MainColor] _BaseColor("Base Color", Color) = (1, 1, 1, 1)
-        [MainTexture] _BaseMap("Base Map", 2D) = "white"
+        _NumTextures("Number of Textures", Range(1, 20)) = 1
+        _BaseTexture("Base Texture Index", Range(0, 599)) = 0
     }
 
     SubShader
@@ -37,43 +37,34 @@ Shader "Custom/BindlessTest"
                 float2 uv : TEXCOORD0;
             };
 
-            TEXTURE2D(_BaseMap);
-            SAMPLER(sampler_BaseMap);
-
-            float a;
-
-            Texture2D TextureTable[10] : register(t31, space0);
+            Texture2D TextureTable[600] : register(t31, space0);
             SamplerState my_linear_clamp_sampler;
 
             CBUFFER_START(UnityPerMaterial)
-                half4 _BaseColor;
-                float4 _BaseMap_ST;
+                int _NumTextures;
+                int _BaseTexture;
             CBUFFER_END
 
             Varyings vert(Attributes IN)
             {
                 Varyings OUT;
                 OUT.positionHCS = TransformObjectToHClip(IN.positionOS.xyz);
-                OUT.uv = TRANSFORM_TEX(IN.uv, _BaseMap);
+                OUT.uv = IN.uv;
                 return OUT;
             }
 
 
             half4 frag(Varyings IN) : SV_Target
             {
-                uint numTextures = 4;
-                int baseTexture = 0;
+ 
 
-                // half4 color = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, IN.uv) * _BaseColor;
-                // color = float4(0, 0, 0, 1);
-
-                float2 textureIds = IN.uv.xy * numTextures;
-                int texIdFlat = int(int(textureIds.x) + int(textureIds.y) * numTextures) + baseTexture;
+                float2 textureIds = IN.uv.xy * _NumTextures;
+                int texIdFlat = int(int(textureIds.x) + int(textureIds.y) * _NumTextures) + _BaseTexture;
                 texIdFlat = max(texIdFlat, 0);
 
-                float4 v = TextureTable[texIdFlat].Sample(my_linear_clamp_sampler, frac(IN.uv.xy * numTextures));
-                return float4(0.9, v.r, v.b, 1);
-  
+                float4 v = TextureTable[texIdFlat].Sample(my_linear_clamp_sampler, frac(IN.uv.xy * _NumTextures));
+                return float4(v.xyz, 1);
+
                 // return color;
             }
             ENDHLSL

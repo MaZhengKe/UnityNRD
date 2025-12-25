@@ -168,9 +168,8 @@ namespace PathTracing
 
             if (gIn_ScramblingRankingUint == null)
             {
-                Debug.Log(
-                    $"gIn_ScramblingRanking {gIn_ScramblingRanking.format} width:{gIn_ScramblingRanking.width} height:{gIn_ScramblingRanking.height}");
-                Debug.Log($"gIn_Sobol {gIn_Sobol.format} width:{gIn_Sobol.width} height:{gIn_Sobol.height}");
+                // Debug.Log($"gIn_ScramblingRanking {gIn_ScramblingRanking.format} width:{gIn_ScramblingRanking.width} height:{gIn_ScramblingRanking.height}");
+                // Debug.Log($"gIn_Sobol {gIn_Sobol.format} width:{gIn_Sobol.width} height:{gIn_Sobol.height}");
 
                 gIn_ScramblingRankingUint =
                     new GraphicsBuffer(GraphicsBuffer.Target.Structured, gIn_ScramblingRanking.width * gIn_ScramblingRanking.height, 16);
@@ -180,8 +179,8 @@ namespace PathTracing
                 Color32[] colors = gIn_ScramblingRanking.GetPixels32();
 
 
-                Debug.Log($"gIn_ScramblingRanking rawData Length: {rawData.Length}");
-                Debug.Log($"gIn_ScramblingRanking colors Length: {colors.Length}");
+                // Debug.Log($"gIn_ScramblingRanking rawData Length: {rawData.Length}");
+                // Debug.Log($"gIn_ScramblingRanking colors Length: {colors.Length}");
 
 
                 int count = scramblingRankingData.Length;
@@ -202,8 +201,8 @@ namespace PathTracing
                 rawData = gIn_Sobol.GetRawTextureData();
                 colors = gIn_Sobol.GetPixels32();
 
-                Debug.Log($"gIn_Sobol rawData Length: {rawData.Length}");
-                Debug.Log($"gIn_Sobol colors Length: {colors.Length}");
+                // Debug.Log($"gIn_Sobol rawData Length: {rawData.Length}");
+                // Debug.Log($"gIn_Sobol colors Length: {colors.Length}");
 
                 count = sobolData.Length;
                 for (int i = 0; i < count; i++)
@@ -260,7 +259,7 @@ namespace PathTracing
 
         protected override void Dispose(bool disposing)
         {
-            Debug.Log("PathTracingFeature Dispose");
+            // Debug.Log("PathTracingFeature Dispose");
             base.Dispose(disposing);
             accelerationStructure.Dispose();
             accelerationStructure.Release();
