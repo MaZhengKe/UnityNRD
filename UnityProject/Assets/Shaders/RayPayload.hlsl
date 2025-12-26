@@ -126,12 +126,12 @@ struct GeometryProps
     float3 V; // 视线方向（通常为 -ray 方向）
     float4 T; // 切线向量（xyz）和副切线符号（w）
     float3 N; // 法线向量（世界空间）
-    float hitT; // 光线命中的距离（t值），INF表示未命中
-    float mip;
     float2 uv;
+    float mip;
+    float hitT; // 光线命中的距离（t值），INF表示未命中
     float curvature; // 曲率估算值（用于材质、去噪等）
-    uint instanceIndex; // 命中的实例索引（用于查找InstanceData）
     uint textureOffsetAndFlags;
+    uint instanceIndex; // 命中的实例索引（用于查找InstanceData）
 
     #define PT_BOUNCE_RAY_OFFSET                0.25 // pixels
 

@@ -49,9 +49,6 @@ struct InstanceData
 };
 
 
-RaytracingAccelerationStructure gWorldTlas;
-StructuredBuffer<InstanceData> gIn_InstanceData ;
-StructuredBuffer<PrimitiveData> gIn_PrimitiveData ;
 
 
 RWTexture2D<float4> gOut_Debug;
@@ -393,7 +390,7 @@ void CSMain(int2 pixelPos : SV_DispatchThreadID)
     if (isMiss )
         return;
     
-    float debugv = geometryProps0.instanceIndex / 4.0;
+    // float debugv = geometryProps0.instanceIndex / 4.0;
     
     // gOut_Debug[pixelPos] = float4( cameraRayDirection, 1.0 );
     
@@ -406,7 +403,7 @@ void CSMain(int2 pixelPos : SV_DispatchThreadID)
     //
      
 
-    gOut_Debug[pixelPos] = float4(materialProps0.curvature,materialProps0.curvature,materialProps0.curvature, 1.0);
+    // gOut_Debug[pixelPos] = float4(materialProps0.curvature,materialProps0.curvature,materialProps0.curvature, 1.0);
     // gOut_Debug[pixelPos] = float4(geometryProps0.curvature,geometryProps0.curvature,geometryProps0.curvature, 1.0);
     // gOut_Debug[pixelPos] = float4(materialProps0.N, 1.0);
 }

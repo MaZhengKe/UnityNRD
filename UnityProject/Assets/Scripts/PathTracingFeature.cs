@@ -153,13 +153,13 @@ namespace PathTracing
 
         private Dictionary<int, NRDDenoiser> _denoisers = new();
 
-        
+
         private PathTracingDataBuilder _dataBuilder = new PathTracingDataBuilder();
+
         public override void Create()
         {
-            
             _dataBuilder.Build();
-            
+
             if (accelerationStructure == null)
             {
                 settings = new Settings
@@ -170,7 +170,7 @@ namespace PathTracing
                 accelerationStructure = new RayTracingAccelerationStructure(settings);
 
                 accelerationStructure.Build();
-                
+
                 Debug.Log("PathTracingFeature Create AccelerationStructure :" + accelerationStructure.GetInstanceCount());
             }
 
@@ -201,7 +201,7 @@ namespace PathTracing
                         rawData[i * 4 + 2],
                         rawData[i * 4 + 3]);
                 }
- 
+
                 gIn_ScramblingRankingUint.SetData(scramblingRankingData);
 
 
