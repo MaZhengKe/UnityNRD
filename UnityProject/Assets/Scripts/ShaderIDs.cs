@@ -34,6 +34,9 @@ namespace PathTracing
 
 
         public static int g_AccelStructID = Shader.PropertyToID("g_AccelStruct");
+        public static int gWorldTlasID = Shader.PropertyToID("gWorldTlas");
+        public static int gIn_InstanceDataID = Shader.PropertyToID("gIn_InstanceData");
+        public static int gIn_PrimitiveDataID = Shader.PropertyToID("gIn_PrimitiveData");
 
 
         // TraceOpaque

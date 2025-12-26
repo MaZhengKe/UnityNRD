@@ -14,8 +14,8 @@
 #include <debugapi.h>
 #endif
 
-const char* prefix = "[Meetem.Bindless]: ";
-const unsigned prefixLength = 19u;
+const char* prefix = "[Hook]: ";
+const unsigned prefixLength = 8u;
 
 char UnityLog::logData[UNITY_LOG_MAX_STR];
 IUnityLog* UnityLog::logInstance;

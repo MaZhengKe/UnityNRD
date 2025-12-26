@@ -1,30 +1,174 @@
-#pragma use_dxc
-#pragma target 6.0
-#pragma only_renderers d3d11
+#pragma use_dxc 
+
+// #pragma require Int64BufferAtomics
+// #pragma require Native16Bit
 
 #pragma kernel CSMain
 
+#pragma require inlineraytracing
+#pragma only_renderers d3d11
+
 #include "RayPayload.hlsl"
+
+struct PrimitiveData
+{
+    float2 uv0;
+    float2 uv1;
+    float2 uv2;
+    float worldArea;
+
+    float2 n0;
+    float2 n1;
+    float2 n2;
+    float uvArea;
+
+    float2 t0;
+    float2 t1;
+    float2 t2;
+    float bitangentSign;
+};
+
+struct InstanceData
+{
+    // For static: mObjectToWorld
+    // For dynamic: mWorldToWorldPrev
+    float4x4 mObjectToWorld;
+
+    float4 baseColorAndMetalnessScale;
+    float4 emissionAndRoughnessScale;
+
+    float2 normalUvScale;
+    uint textureOffsetAndFlags;
+    uint primitiveOffset;
+    float scale; // TODO: handling object scale embedded into the transformation matrix (assuming uniform scale), sign represents triangle winding
+
+    uint morphPrimitiveOffset;
+    uint unused1;
+    uint unused2;
+    uint unused3;
+};
+
+
+RaytracingAccelerationStructure gWorldTlas;
+StructuredBuffer<InstanceData> gIn_InstanceData ;
+StructuredBuffer<PrimitiveData> gIn_PrimitiveData ;
+
 
 RWTexture2D<float4> gOut_Debug;
 
-Texture2D TextureTable[] : register(t31);
+// Texture2D TextureTable[] : register(t31);
+// SamplerState my_linear_clamp_sampler;
 
-SamplerState my_linear_clamp_sampler;
+
+
+void GetCameraRay(out float3 origin, out float3 direction, float2 sampleUv)
+{
+    // https://www.slideshare.net/TiagoAlexSousa/graphics-gems-from-cryengine-3-siggraph-2013 ( slides 23+ )
+
+    // Pinhole ray
+    float3 Xv = Geometry::ReconstructViewPosition(sampleUv, gCameraFrustum, gNearZ);
+    direction = normalize(Xv);
+
+    // Distorted ray
+    float2 rnd = Rng::Hash::GetFloat2();
+    rnd = ImportanceSampling::Cosine::GetRay(rnd).xy;
+    Xv.xy += rnd * gAperture;
+
+    float3 Fv = direction * gFocalDistance; // z-plane
+    #if 0
+    Fv /= dot(vForward, direction); // radius
+    #endif
+
+    origin = Geometry::AffineTransform(gViewToWorld, Xv);
+    direction = normalize(Geometry::RotateVector(gViewToWorld, Fv - Xv));
+}
+
+
+float2 GetConeAngleFromAngularRadius(float mip, float tanConeAngle)
+{
+    // In any case, we are limited by the output resolution
+    tanConeAngle = max(tanConeAngle, gTanPixelAngularRadius);
+
+    return float2(mip, tanConeAngle);
+}
+
+
+float2 GetConeAngleFromRoughness(float mip, float roughness)
+{
+    float tanConeAngle = roughness * roughness * 0.05; // TODO: tweaked to be accurate and give perf boost
+
+    return GetConeAngleFromAngularRadius(mip, tanConeAngle);
+}
+
+
+GeometryProps CastRay( float3 origin, float3 direction, float Tmin, float Tmax, float2 mipAndCone, RaytracingAccelerationStructure accelerationStructure, uint instanceInclusionMask, uint rayFlags )
+{
+    RayDesc rayDesc;
+    rayDesc.Origin = origin;
+    rayDesc.Direction = direction;
+    rayDesc.TMin = Tmin;
+    rayDesc.TMax = Tmax;
+
+    RayQuery< RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES > rayQuery;
+    rayQuery.TraceRayInline( accelerationStructure, rayFlags, instanceInclusionMask, rayDesc );
+    
+    rayQuery.Proceed( );
+    
+    GeometryProps props = ( GeometryProps )0;
+    props.mip = mipAndCone.x;
+    
+    if( rayQuery.CommittedStatus( ) == COMMITTED_NOTHING )
+    {
+        props.hitT = INF;
+        props.X = origin + direction * props.hitT;
+        props.Xprev = props.X;
+    }
+    else
+    {
+        props.hitT = rayQuery.CommittedRayT( );
+        
+        uint instanceIndex = rayQuery.CommittedInstanceID( ) + rayQuery.CommittedGeometryIndex( );
+        props.instanceIndex = instanceIndex;
+    }
+    
+    return props;
+}
 
 [numthreads(16,16,1)]
 void CSMain(int2 pixelPos : SV_DispatchThreadID)
 {
-    float2 pixelUv = float2(pixelPos + 0.5) * gInvRectSize;
-    if (pixelUv.x > 1.0 || pixelUv.y > 1.0)
+    float2 pixelUv = float2( pixelPos + 0.5 ) * gInvRectSize;
+    float2 sampleUv = pixelUv + gJitter;
+    
+    if( pixelUv.x > 1.0 || pixelUv.y > 1.0 )
+    {
         return;
+    }
     
-    float2 textureIds = pixelUv * 10;
-    int texIdFlat = int(int(textureIds.x) + int(textureIds.y) * 10);
-    texIdFlat = max(texIdFlat, 0);
+    
+    Rng::Hash::Initialize( pixelPos, gFrameIndex );
+    
+    float3 cameraRayOrigin = 0;
+    float3 cameraRayDirection = 0;
+    GetCameraRay( cameraRayOrigin, cameraRayDirection, sampleUv );
+    
+    GeometryProps geometryProps0 = CastRay( cameraRayOrigin, cameraRayDirection, 0.0, INF, GetConeAngleFromRoughness( 0.0, 0.0 ), gWorldTlas, 0xFF, RAY_FLAG_CULL_NON_OPAQUE );
 
-    float4 v = TextureTable[texIdFlat].SampleLevel(my_linear_clamp_sampler, frac(pixelUv * 10),0);
-               
+    bool isMiss = geometryProps0.IsMiss();
     
-    gOut_Debug[pixelPos] = float4(v.xyz, 1.0);
+    float debugv = geometryProps0.instanceIndex / 4.0;
+    
+    // gOut_Debug[pixelPos] = float4( cameraRayDirection, 1.0 );
+    
+    gOut_Debug[pixelPos] = float4( debugv,debugv,debugv, 1.0 );
+    // gOut_Debug[pixelPos] = float4( 1,0,0, 1.0 );
+    
+    // float2 textureIds = pixelUv * 10;
+    // int texIdFlat = int(int(textureIds.x) + int(textureIds.y) * 10);
+    // texIdFlat = max(texIdFlat, 0);
+    //
+    // float4 v = TextureTable[texIdFlat].SampleLevel(my_linear_clamp_sampler, frac(pixelUv * 10),0);
+    //            
+    //
+    // gOut_Debug[pixelPos] = float4(v.xyz, 1.0);
 }

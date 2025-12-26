@@ -35,21 +35,21 @@ namespace
         {
             RenderSystem::Get().Initialize(s_UnityInterfaces);
 
-            InitHook(s_Logger);
-            ID3D12Device* device = s_d3d12->GetDevice();
-            HookDevice(device);
-
-            ID3D12CommandAllocator* commandAllocator = nullptr;
-            device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,IID_PPV_ARGS(&commandAllocator)
-            );
-
-            ID3D12CommandList* commandList;
-            device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, commandAllocator, nullptr,IID_PPV_ARGS(&commandList)
-            );
-            HookCommandList((ID3D12GraphicsCommandList*)commandList);
-
-            commandList->Release();
-            commandAllocator->Release();
+            // InitHook(s_Logger);
+            // ID3D12Device* device = s_d3d12->GetDevice();
+            // HookDevice(device);
+            //
+            // ID3D12CommandAllocator* commandAllocator = nullptr;
+            // device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,IID_PPV_ARGS(&commandAllocator)
+            // );
+            //
+            // ID3D12CommandList* commandList;
+            // device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, commandAllocator, nullptr,IID_PPV_ARGS(&commandList)
+            // );
+            // HookCommandList((ID3D12GraphicsCommandList*)commandList);
+            //
+            // commandList->Release();
+            // commandAllocator->Release();
         }
 
         // 让图形API处理与设备相关的事件

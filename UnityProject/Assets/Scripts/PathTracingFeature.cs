@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using DefaultNamespace;
 using Nrd;
 using Unity.Mathematics;
 using UnityEngine;
@@ -152,8 +153,13 @@ namespace PathTracing
 
         private Dictionary<int, NRDDenoiser> _denoisers = new();
 
+        
+        private PathTracingDataBuilder _dataBuilder = new PathTracingDataBuilder();
         public override void Create()
         {
+            
+            _dataBuilder.Build();
+            
             if (accelerationStructure == null)
             {
                 settings = new Settings
@@ -164,6 +170,8 @@ namespace PathTracing
                 accelerationStructure = new RayTracingAccelerationStructure(settings);
 
                 accelerationStructure.Build();
+                
+                Debug.Log("PathTracingFeature Create AccelerationStructure :" + accelerationStructure.GetInstanceCount());
             }
 
 
@@ -193,7 +201,7 @@ namespace PathTracing
                         rawData[i * 4 + 2],
                         rawData[i * 4 + 3]);
                 }
-
+ 
                 gIn_ScramblingRankingUint.SetData(scramblingRankingData);
 
 
@@ -228,7 +236,8 @@ namespace PathTracing
                 opaqueTracingCs = opaqueTracingCs,
                 AccelerationStructure = accelerationStructure,
                 ScramblingRanking = gIn_ScramblingRankingUint,
-                Sobol = gIn_SobolUint
+                Sobol = gIn_SobolUint,
+                _dataBuilder = _dataBuilder
             };
 
             if (finalMaterial == null)

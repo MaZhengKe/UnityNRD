@@ -683,7 +683,7 @@ extern "C" static void STDMETHODCALLTYPE Hooked_SetComputeRootDescriptorTable(ID
             dt.isHookedCmpDescSetAssigned = true;
             SetCommandListState(gfxList, dt);
 
-            UnityLog::Debug("Set compute root descriptor table for bindless: (hooked %d) -> %d with offset %d\n", RootParameterIndex, targetIdx, srvBaseOffset);
+            // UnityLog::Debug("Set compute root descriptor table for bindless: (hooked %d) -> %d with offset %d\n", RootParameterIndex, targetIdx, srvBaseOffset);
 
             auto assignedHeap = hookedDescriptorHeaps[dt.assignedHookedHeap - 1];
             CD3DX12_GPU_DESCRIPTOR_HANDLE gpuHandle(assignedHeap->GetGPUDescriptorHandleForHeapStart());
