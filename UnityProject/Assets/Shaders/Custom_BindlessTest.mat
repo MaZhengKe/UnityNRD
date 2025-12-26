@@ -30,7 +30,7 @@ Material:
     m_Ints: []
     m_Floats:
     - _BaseTexture: 0
-    - _NumTextures: 7.49
+    - _NumTextures: 20
     m_Colors:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
   m_BuildTextureStacks: []

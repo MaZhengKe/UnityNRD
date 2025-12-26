@@ -1,0 +1,30 @@
+#pragma use_dxc
+#pragma target 6.0
+#pragma only_renderers d3d11
+
+#pragma kernel CSMain
+
+#include "RayPayload.hlsl"
+
+RWTexture2D<float4> gOut_Debug;
+
+Texture2D TextureTable[] : register(t31);
+
+SamplerState my_linear_clamp_sampler;
+
+[numthreads(16,16,1)]
+void CSMain(int2 pixelPos : SV_DispatchThreadID)
+{
+    float2 pixelUv = float2(pixelPos + 0.5) * gInvRectSize;
+    if (pixelUv.x > 1.0 || pixelUv.y > 1.0)
+        return;
+    
+    float2 textureIds = pixelUv * 10;
+    int texIdFlat = int(int(textureIds.x) + int(textureIds.y) * 10);
+    texIdFlat = max(texIdFlat, 0);
+
+    float4 v = TextureTable[texIdFlat].SampleLevel(my_linear_clamp_sampler, frac(pixelUv * 10),0);
+               
+    
+    gOut_Debug[pixelPos] = float4(v.xyz, 1.0);
+}

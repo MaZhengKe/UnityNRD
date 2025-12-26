@@ -1,0 +1,21 @@
+#pragma use_dxc
+#pragma kernel CSMain
+
+RWTexture2D<float4> Result : register(u0);
+
+// register t31 is registered to be the "bindless" slot
+// so you declare your bindless tables like that,
+// and descriptor patching will do the job.
+Texture2D Texture2DTable[] : register(t31);
+
+[numthreads(32,32,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    // TODO: insert actual code here!
+    uint texIdX = id.x / 64;
+    uint texIdY = id.y / 64;
+    uint texIdFlat = texIdY * 8 + texIdX;
+    
+    float4 v = Texture2DTable[texIdFlat].Load(uint3(id.x % 64, id.y % 64, 0));
+    Result[id.xy] = v;//float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
+}

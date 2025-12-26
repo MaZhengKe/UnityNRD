@@ -136,6 +136,7 @@ namespace PathTracing
 
         public ComputeShader compositionComputeShader;
         public ComputeShader taaComputeShader;
+        public ComputeShader opaqueTracingCs;
 
         public PathTracingSetting pathTracingSetting;
 
@@ -224,6 +225,7 @@ namespace PathTracing
                 TransparentTs = transparentTracingShader,
                 CompositionCs = compositionComputeShader,
                 TaaCs = taaComputeShader,
+                opaqueTracingCs = opaqueTracingCs,
                 AccelerationStructure = accelerationStructure,
                 ScramblingRanking = gIn_ScramblingRankingUint,
                 Sobol = gIn_SobolUint

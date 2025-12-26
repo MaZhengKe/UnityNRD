@@ -67,11 +67,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f50908f0e9bf42149891b36684931380, type: 3}
   m_Name: PathTracingFeature
   m_EditorClassIdentifier: Assembly-CSharp::PathTracing.PathTracingFeature
-  m_Active: 0
+  m_Active: 1
   opaqueTracingShader: {fileID: 4807578003741378534, guid: 71faa22953dc9834daf36cc38966c196, type: 3}
   transparentTracingShader: {fileID: 4807578003741378534, guid: d207e5fb066a4b579353785310fd0dea, type: 3}
   compositionComputeShader: {fileID: 7200000, guid: 6b0c89c26f4363a4781550cf86801786, type: 3}
   taaComputeShader: {fileID: 7200000, guid: 6af7363d73bc4764bd8420bb5cc5d306, type: 3}
+  opaqueTracingCs: {fileID: 7200000, guid: ae1e8e4943d449eabba28e0e22bb59dc, type: 3}
   pathTracingSetting:
     sunAngularDiameter: 0.533
     denoisingRange: 1000
@@ -79,12 +80,12 @@ MonoBehaviour:
     isBaseColorMetalnessAvailable: 1
     planeDistanceSensitivity: 0.212
     maxStabilizedFrameNum: 5
-    showMode: 14
+    showMode: 10
     showMV: 0
     showValidation: 0
     dofAperture: 0
     dofFocalDistance: 0.57
-    exposure: 100
+    exposure: 1
     taa: 0.03
     rpp: 1
     bounceNum: 1

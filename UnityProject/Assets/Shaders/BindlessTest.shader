@@ -57,7 +57,7 @@ Shader "Custom/BindlessTest"
             half4 frag(Varyings IN) : SV_Target
             {
  
-
+ 
                 float2 textureIds = IN.uv.xy * _NumTextures;
                 int texIdFlat = int(int(textureIds.x) + int(textureIds.y) * _NumTextures) + _BaseTexture;
                 texIdFlat = max(texIdFlat, 0);
