@@ -172,7 +172,7 @@ namespace PathTracing
             natCmd.SetComputeBufferParam(data.opaqueTracingCs, 0, gIn_InstanceDataID, data._dataBuilder._instanceBuffer);
             natCmd.SetComputeBufferParam(data.opaqueTracingCs, 0, gIn_PrimitiveDataID, data._dataBuilder._primitiveBuffer);
 
-            natCmd.SetComputeConstantBufferParam(data.opaqueTracingCs, paramsID, data.ConstantBuffer, 0, data.ConstantBuffer.stride);
+            natCmd.SetComputeConstantBufferParam(data.opaqueTracingCs, "GlobalConstants", data.ConstantBuffer, 0, data.ConstantBuffer.stride);
             natCmd.SetComputeTextureParam(data.opaqueTracingCs, 0, gOut_DebugID, data.OutputTexture);
             natCmd.SetComputeTextureParam(data.opaqueTracingCs, 0, "gIn_Textures", Texture2D.blackTexture);
             natCmd.DispatchCompute(data.opaqueTracingCs, 0, threadGroupX, threadGroupY, 1);

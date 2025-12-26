@@ -325,13 +325,13 @@ cbuffer GlobalConstants: register(b0)
 #include "ml.hlsli"
 #include "NRDInclude/NRD.hlsli"
 
-SamplerState sampler_TrilinearClamp;
-SamplerState sampler_LinearClamp;
-SamplerState sampler_PointClamp;
+SamplerState sampler_TrilinearRepeat;
+SamplerState sampler_LinearRepeat;
+SamplerState sampler_PointRepeat;
 
-#define gLinearMipmapLinearSampler  sampler_TrilinearClamp
-#define gLinearMipmapNearestSampler  sampler_LinearClamp
-#define gNearestMipmapNearestSampler  sampler_PointClamp
+#define gLinearMipmapLinearSampler  sampler_TrilinearRepeat
+#define gLinearMipmapNearestSampler  sampler_LinearRepeat
+#define gNearestMipmapNearestSampler  sampler_PointRepeat
 
 
 #define gLinearSampler gLinearMipmapLinearSampler

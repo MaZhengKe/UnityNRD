@@ -163,6 +163,10 @@ namespace DefaultNamespace
 
             for (int i = 0; i < renderers.Length; i++)
             {
+                
+                Debug.Log("Processing Renderer: " + renderers[i].name);
+                
+                
                 MeshFilter mf = renderers[i].GetComponent<MeshFilter>();
                 if (mf == null || mf.sharedMesh == null)
                     continue;
@@ -183,42 +187,49 @@ namespace DefaultNamespace
 
                 for (int t = 0; t < triangles.Length; t += 3)
                 {
+                    PrimitiveData prim = new PrimitiveData();
                     int i0 = triangles[t], i1 = triangles[t + 1], i2 = triangles[t + 2];
 
-                    PrimitiveData prim = new PrimitiveData();
+                    prim.n0 = EncodeUnitVector(normals[i0], true);
+                    prim.n1 = EncodeUnitVector(normals[i1], true);
+                    prim.n2 = EncodeUnitVector(normals[i2], true);
+
                     prim.uv0 = new half2(uvs[i0]);
                     prim.uv1 = new half2(uvs[i1]);
                     prim.uv2 = new half2(uvs[i2]);
-                    
-                    prim.n0 = EncodeUnitVector(normals[i0],true);
-                    prim.n1 = EncodeUnitVector(normals[i1],true);
-                    prim.n2 = EncodeUnitVector(normals[i2],true);
+
 
                     // 计算面积 (用于重要性采样)
-                    Vector3 v0 = localToWorld.MultiplyPoint(vertices[i0]);
-                    Vector3 v1 = localToWorld.MultiplyPoint(vertices[i1]);
-                    Vector3 v2 = localToWorld.MultiplyPoint(vertices[i2]);
-                    float worldArea = Vector3.Cross(v1 - v0, v2 - v0).magnitude * 0.5f;
+                    Vector3 p0 = vertices[i0];
+                    Vector3 p1 = vertices[i1];
+                    Vector3 p2 = vertices[i2];
+
+                    Vector3 edge20 = p2 - p0;
+                    Vector3 edge10 = p1 - p0;
+
+                    float worldArea = Vector3.Cross(edge20, edge10).magnitude * 0.5f;
                     prim.worldArea = Math.Max(worldArea, 1e-9f);
+                    
+                    // Debug.Log($"Triangle {t / 3}: World Area = {prim.worldArea} p0={p0} p1={p1} p2={p2}");
 
 
                     // 3. 计算 UV 面积 (原版代码逻辑)
-                    Vector2 uvEdge10 = uvs[i1] - uvs[i0];
-                    Vector2 uvEdge20 = uvs[i2] - uvs[i0];
-                    float uvArea = Math.Abs(uvEdge10.x * uvEdge20.y - uvEdge20.x * uvEdge10.y) * 0.5f;
+                    Vector3 uvEdge20 = uvs[i2] - uvs[i0];
+                    Vector3 uvEdge10 = uvs[i1] - uvs[i0];
+                    float uvArea = Vector3.Cross(uvEdge20, uvEdge10).magnitude * 0.5f;
                     prim.uvArea = Math.Max(uvArea, 1e-9f);
 
                     // Debug.Log(tangents.Length);
- 
+
                     // 这里演示如何从 Unity 自带的 Tangent 获取并转换
                     Vector3 tang0 = tangents[i0];
                     Vector3 tang1 = tangents[i1];
                     Vector3 tang2 = tangents[i2];
 
                     // 将切线转换到世界空间 (注意：这里通常需要 ITMatrix)
-                    prim.t0 = EncodeUnitVector(tang0,true);
-                    prim.t1 = EncodeUnitVector(tang1,true);
-                    prim.t2 = EncodeUnitVector(tang2,true);
+                    prim.t0 = EncodeUnitVector(tang0, true);
+                    prim.t1 = EncodeUnitVector(tang1, true);
+                    prim.t2 = EncodeUnitVector(tang2, true);
                     prim.bitangentSign = tangents[i0].w;
 
                     primitiveDataList.Add(prim);
@@ -226,21 +237,19 @@ namespace DefaultNamespace
 
                 // --- 构造 Instance Data ---
                 InstanceData inst = new InstanceData();
-                
+
                 Matrix4x4 m = localToWorld;
 
                 // 赋值前三行 (Row 0, Row 1, Row 2)
                 inst.mOverloadedMatrix0 = new float4(m.m00, m.m01, m.m02, m.m03);
                 inst.mOverloadedMatrix1 = new float4(m.m10, m.m11, m.m12, m.m13);
                 inst.mOverloadedMatrix2 = new float4(m.m20, m.m21, m.m22, m.m23);
-                
-                
-                inst.primitiveOffset = currentPrimitiveOffset;
-                inst.baseColorAndMetalnessScale = new half4(new float4(1,1,1,1) ); // 可从 Material 获取
-                inst.emissionAndRoughnessScale = new half4(new float4(1,1,1,1)); // 可从 Material 获取
-                inst.normalUvScale = new half2(new half(1), new half(1)); // 可从 Material 获取
-                inst.scale = renderers[i].transform.lossyScale.x; // 简单处理
 
+
+                inst.primitiveOffset = currentPrimitiveOffset;
+                inst.baseColorAndMetalnessScale = new half4(new float4(1, 1, 1, 1)); // 可从 Material 获取
+                inst.emissionAndRoughnessScale = new half4(new float4(1, 1, 1, 1)); // 可从 Material 获取
+                inst.normalUvScale = new half2(new half(1), new half(1)); // 可从 Material 获取
                 inst.morphPrimitiveOffset = 0; // 静态场景设为0 
 
 
@@ -289,9 +298,9 @@ namespace DefaultNamespace
                     // emissionAndRoughnessScale.xyz 对应 Emission 缩放，.w 对应 Roughness 缩放
                     Color emi = mat.HasProperty("_EmissionColor") ? mat.GetColor("_EmissionColor") : Color.black;
                     float roughScale = 1.0f;
-                    
+
                     // 注意：HLSL 里的 materialProps.y 通常是 Roughness，如果你材质里是 Smoothness，这里需要 (1 - s)
-                    inst.emissionAndRoughnessScale = new half4(new half(emi.r),new half( emi.g), new half(emi.b), new half(roughScale));
+                    inst.emissionAndRoughnessScale = new half4(new half(emi.r), new half(emi.g), new half(emi.b), new half(roughScale));
 
                     // normalUvScale
                     Vector2 tiling = mat.mainTextureScale;
@@ -328,13 +337,23 @@ namespace DefaultNamespace
 
             BindlessPlugin.SetBindlessTextures(0, data);
         }
- 
+
+        float SafeSign(float x)
+        {
+            return x >= 0.0f ? 1.0f : -1.0f;
+        }
+
+        float2 SafeSign(float2 v)
+        {
+            return new float2(SafeSign(v.x), SafeSign(v.y));
+        }
+
 
         half2 EncodeUnitVector(float3 v, bool bSigned = false)
         {
             v /= math.dot(math.abs(v), 1.0f);
 
-            float2 octWrap = (1.0f - math.abs(v.yx)) * math.sign(v.xy);
+            float2 octWrap = (1.0f - math.abs(v.yx)) * SafeSign(v.xy);
             v.xy = v.z >= 0.0f ? v.xy : octWrap;
 
             return new half2(bSigned ? v.xy : 0.5f * v.xy + 0.5f);
