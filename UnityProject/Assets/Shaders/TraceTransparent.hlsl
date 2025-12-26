@@ -2,7 +2,7 @@
 #include "NRDInclude/NRD.hlsli"
 #include "RayPayload.hlsl"
 #include "GlobalResource.hlsl"
-#include "Shared.hlsl"
+// #include "Shared.hlsl"
 
 Texture2D<float3> gIn_ComposedDiff;
 Texture2D<float4> gIn_ComposedSpec_ViewZ;
@@ -27,8 +27,9 @@ void MainRayGenShader()
     float3 Lsum = diff + spec;
     
     // Apply exposure
-    Lsum = ApplyExposure( Lsum );
+    // Lsum = ApplyExposure( Lsum );
     
+    Lsum *= gExposure;
     // Output
     gOut_Composed[ pixelPos ] = Lsum;
 

@@ -55,6 +55,9 @@ namespace PathTracing
 
         [Range(0.1f, 10f)]
         public float dofFocalDistance;
+        
+        [Range(0.1f, 10f)]
+        public float dofFocalLength;
 
         [Header("曝光")]
         [Range(0.1f, 100f)]
@@ -70,5 +73,7 @@ namespace PathTracing
 
         [Range(1, 4)]
         public uint bounceNum = 1;
+
+        public float mipBias;
     }
 }

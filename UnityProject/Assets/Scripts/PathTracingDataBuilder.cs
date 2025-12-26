@@ -3,42 +3,52 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Meetem.Bindless;
 using PathTracing;
+using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
 using Object = UnityEngine.Object;
 
 namespace DefaultNamespace
 {
-    // 对应 HLSL 的 PrimitiveData
-    [Serializable]
     [StructLayout(LayoutKind.Sequential)]
     public struct PrimitiveData
     {
-        public Vector2 uv0, uv1, uv2;
+        public half2 uv0;
+        public half2 uv1;
+        public half2 uv2;
         public float worldArea;
-        public Vector2 n0, n1, n2;
+
+        public half2 n0;
+        public half2 n1;
+        public half2 n2;
         public float uvArea;
-        public Vector2 t0, t1, t2;
+
+        public half2 t0;
+        public half2 t1;
+        public half2 t2;
         public float bitangentSign;
     }
 
-// 对应 HLSL 的 InstanceData
-    [Serializable]
     [StructLayout(LayoutKind.Sequential)]
     public struct InstanceData
     {
-        public Matrix4x4 mObjectToWorld; // 对应 NRDSample 的矩阵
+        // 对应 HLSL 中的 float4
+        public float4 mOverloadedMatrix0;
+        public float4 mOverloadedMatrix1;
+        public float4 mOverloadedMatrix2;
 
-        public Vector4 baseColorAndMetalnessScale;
-        public Vector4 emissionAndRoughnessScale;
+        public half4 baseColorAndMetalnessScale;
+        public half4 emissionAndRoughnessScale;
 
-        public Vector2 normalUvScale;
+        public half2 normalUvScale;
         public uint textureOffsetAndFlags;
         public uint primitiveOffset;
         public float scale;
 
-        public uint morphPrimitiveOffset; // 静态场景设为 0
-        public uint unused1, unused2, unused3;
+        public uint morphPrimitiveOffset;
+        public uint unused1;
+        public uint unused2;
+        public uint unused3;
     }
 
     public class PathTracingDataBuilder
@@ -68,7 +78,7 @@ namespace DefaultNamespace
         public List<Texture2D> globalTexturePool = new List<Texture2D>();
 
 
-// 缓存已添加的纹理组，避免重复上传相同的材质纹理组合
+        // 缓存已添加的纹理组，避免重复上传相同的材质纹理组合
         private Dictionary<string, uint> textureGroupCache = new Dictionary<string, uint>();
 
         private uint GetTextureGroupIndex(Material mat)
@@ -76,7 +86,7 @@ namespace DefaultNamespace
             if (mat == null) return 0;
 
             // 获取四张纹理，如果为空则使用默认值
-            Texture2D texBase = (Texture2D)mat.GetTexture("_BaseMap") ?? (Texture2D)mat.GetTexture("_MainTex") ?? defaultWhite;
+            Texture2D texBase = (Texture2D)mat.GetTexture("_BaseMap") ?? defaultWhite;
             Texture2D texMask = (Texture2D)mat.GetTexture("_MetallicGlossMap") ?? defaultMask;
             Texture2D texNormal = (Texture2D)mat.GetTexture("_BumpMap") ?? defaultNormal;
             Texture2D texEmission = (Texture2D)mat.GetTexture("_EmissionMap") ?? defaultBlack;
@@ -88,9 +98,10 @@ namespace DefaultNamespace
             {
                 return startIndex;
             }
+
             // 如果没添加过，则按顺序连续存入 4 张
             startIndex = (uint)globalTexturePool.Count;
-            Debug.Log("startIndex : " +  startIndex);
+            Debug.Log("startIndex : " + startIndex);
             globalTexturePool.Add(texBase); // index + 0
             globalTexturePool.Add(texMask); // index + 1
             globalTexturePool.Add(texNormal); // index + 2
@@ -157,6 +168,8 @@ namespace DefaultNamespace
                     continue;
 
                 Mesh mesh = mf.sharedMesh;
+
+
                 Matrix4x4 localToWorld = renderers[i].transform.localToWorldMatrix;
 
                 // --- 构造 Primitive Data (每个三角形一个) ---
@@ -173,53 +186,59 @@ namespace DefaultNamespace
                     int i0 = triangles[t], i1 = triangles[t + 1], i2 = triangles[t + 2];
 
                     PrimitiveData prim = new PrimitiveData();
-                    prim.uv0 = uvs[i0];
-                    prim.uv1 = uvs[i1];
-                    prim.uv2 = uvs[i2];
-                    prim.n0 = PackNormal(normals[i0]); // NRDSample 通常压缩法线，这里暂用 Vector2
-                    prim.n1 = PackNormal(normals[i1]);
-                    prim.n2 = PackNormal(normals[i2]);
+                    prim.uv0 = new half2(uvs[i0]);
+                    prim.uv1 = new half2(uvs[i1]);
+                    prim.uv2 = new half2(uvs[i2]);
+                    
+                    prim.n0 = EncodeUnitVector(normals[i0],true);
+                    prim.n1 = EncodeUnitVector(normals[i1],true);
+                    prim.n2 = EncodeUnitVector(normals[i2],true);
 
                     // 计算面积 (用于重要性采样)
                     Vector3 v0 = localToWorld.MultiplyPoint(vertices[i0]);
                     Vector3 v1 = localToWorld.MultiplyPoint(vertices[i1]);
                     Vector3 v2 = localToWorld.MultiplyPoint(vertices[i2]);
-                    prim.worldArea = Vector3.Cross(v1 - v0, v2 - v0).magnitude * 0.5f;
+                    float worldArea = Vector3.Cross(v1 - v0, v2 - v0).magnitude * 0.5f;
+                    prim.worldArea = Math.Max(worldArea, 1e-9f);
 
-                    
+
                     // 3. 计算 UV 面积 (原版代码逻辑)
                     Vector2 uvEdge10 = uvs[i1] - uvs[i0];
                     Vector2 uvEdge20 = uvs[i2] - uvs[i0];
                     float uvArea = Math.Abs(uvEdge10.x * uvEdge20.y - uvEdge20.x * uvEdge10.y) * 0.5f;
                     prim.uvArea = Math.Max(uvArea, 1e-9f);
-                    
+
                     // Debug.Log(tangents.Length);
-                     
-                    // 4. 计算切线 (简化版，若需平滑切线，则需预处理顶点数据)
+ 
                     // 这里演示如何从 Unity 自带的 Tangent 获取并转换
-                    Vector4 tang0 = tangents[i0];
-                    Vector4 tang1 = tangents[i1];
-                    Vector4 tang2 = tangents[i2];
+                    Vector3 tang0 = tangents[i0];
+                    Vector3 tang1 = tangents[i1];
+                    Vector3 tang2 = tangents[i2];
 
                     // 将切线转换到世界空间 (注意：这里通常需要 ITMatrix)
-                    prim.t0 = PackTangent(localToWorld.MultiplyVector(tang0));
-                    prim.t1 = PackTangent(localToWorld.MultiplyVector(tang1));
-                    prim.t2 = PackTangent(localToWorld.MultiplyVector(tang2));
+                    prim.t0 = EncodeUnitVector(tang0,true);
+                    prim.t1 = EncodeUnitVector(tang1,true);
+                    prim.t2 = EncodeUnitVector(tang2,true);
+                    prim.bitangentSign = tangents[i0].w;
 
-                    // 副切线方向 (Handedness)
-                    // Unity 的 tangent.w 存储的就是 handedness (-1 或 1)
-                    prim.bitangentSign = tang0.w; 
-                    
                     primitiveDataList.Add(prim);
                 }
 
                 // --- 构造 Instance Data ---
                 InstanceData inst = new InstanceData();
-                inst.mObjectToWorld = localToWorld;
+                
+                Matrix4x4 m = localToWorld;
+
+                // 赋值前三行 (Row 0, Row 1, Row 2)
+                inst.mOverloadedMatrix0 = new float4(m.m00, m.m01, m.m02, m.m03);
+                inst.mOverloadedMatrix1 = new float4(m.m10, m.m11, m.m12, m.m13);
+                inst.mOverloadedMatrix2 = new float4(m.m20, m.m21, m.m22, m.m23);
+                
+                
                 inst.primitiveOffset = currentPrimitiveOffset;
-                inst.baseColorAndMetalnessScale = new Vector4(1, 1, 1, 1); // 可从 Material 获取
-                inst.emissionAndRoughnessScale = new Vector4(0, 1, 1, 1); // 可从 Material 获取
-                inst.normalUvScale = new Vector2(1, 1); // 可从 Material 获取
+                inst.baseColorAndMetalnessScale = new half4(new float4(1,1,1,1) ); // 可从 Material 获取
+                inst.emissionAndRoughnessScale = new half4(new float4(1,1,1,1)); // 可从 Material 获取
+                inst.normalUvScale = new half2(new half(1), new half(1)); // 可从 Material 获取
                 inst.scale = renderers[i].transform.lossyScale.x; // 简单处理
 
                 inst.morphPrimitiveOffset = 0; // 静态场景设为0 
@@ -264,18 +283,19 @@ namespace DefaultNamespace
                 {
                     // baseColorAndMetalnessScale.xyz 对应 BaseColor 缩放，.w 对应 Metalness 缩放
                     Color col = mat.HasProperty("_BaseColor") ? mat.GetColor("_BaseColor") : Color.white;
-                    float metalScale =  1.0f;
-                    inst.baseColorAndMetalnessScale = new Vector4(col.r, col.g, col.b, metalScale);
+                    float metalScale = 1.0f;
+                    inst.baseColorAndMetalnessScale = new half4(new half(col.r), new half(col.g), new half(col.b), new half(metalScale));
 
                     // emissionAndRoughnessScale.xyz 对应 Emission 缩放，.w 对应 Roughness 缩放
                     Color emi = mat.HasProperty("_EmissionColor") ? mat.GetColor("_EmissionColor") : Color.black;
                     float roughScale = 1.0f;
+                    
                     // 注意：HLSL 里的 materialProps.y 通常是 Roughness，如果你材质里是 Smoothness，这里需要 (1 - s)
-                    inst.emissionAndRoughnessScale = new Vector4(emi.r, emi.g, emi.b, roughScale);
+                    inst.emissionAndRoughnessScale = new half4(new half(emi.r),new half( emi.g), new half(emi.b), new half(roughScale));
 
                     // normalUvScale
                     Vector2 tiling = mat.mainTextureScale;
-                    inst.normalUvScale = tiling;
+                    inst.normalUvScale = new half2(new half(tiling.x), new half(tiling.y));
                 }
 
 
@@ -308,17 +328,16 @@ namespace DefaultNamespace
 
             BindlessPlugin.SetBindlessTextures(0, data);
         }
+ 
 
-        Vector2 PackNormal(Vector3 n)
+        half2 EncodeUnitVector(float3 v, bool bSigned = false)
         {
-            /* 实现编码逻辑 */
-            return new Vector2(n.x, n.y);
-        }
-        
-        // 辅助函数
-        Vector2 PackTangent(Vector3 t) {
-            // 逻辑同 PackNormal，需与 Shader 对应
-            return new Vector2(t.x, t.y);
+            v /= math.dot(math.abs(v), 1.0f);
+
+            float2 octWrap = (1.0f - math.abs(v.yx)) * math.sign(v.xy);
+            v.xy = v.z >= 0.0f ? v.xy : octWrap;
+
+            return new half2(bSigned ? v.xy : 0.5f * v.xy + 0.5f);
         }
     }
 }

@@ -30,44 +30,69 @@ struct RayPayload
 cbuffer PathTracingParams : register(b0)
 {
     float4x4 gViewToWorld;
+    float4x4 gViewToClip;
     float4x4 gWorldToView;
     float4x4 gWorldToViewPrev;
     float4x4 gWorldToClip;
     float4x4 gWorldToClipPrev;
-
+    float4 gHitDistParams;
     float4 gCameraFrustum;
     float4 gSunBasisX;
     float4 gSunBasisY;
     float4 gSunDirection;
-    float4 gCameraGlobalPos;;
-    float4 gCameraGlobalPosPrev;;
-
-    float2 gRectSize;
-    float2 gInvRectSize;
-    float2 gJitter;
-    float2 gRectSizePrev;
-
-    float2 gRenderSize;
+    float4 gCameraGlobalPos;
+    float4 gCameraGlobalPosPrev;
+    float4 gViewDirection;
+    float4 gHairBaseColor;
+    float2 gHairBetas;
+    float2 gOutputSize; // represents native resolution ( >= gRenderSize )
+    float2 gRenderSize; // up to native resolution ( >= gRectSize )
+    float2 gRectSize; // dynamic resolution scaling
+    float2 gInvOutputSize;
     float2 gInvRenderSize;
-
-
-    float gTanPixelAngularRadius;
-    float gUnproject;
-    float gTanSunAngularRadius;
+    float2 gInvRectSize;
+    float2 gRectSizePrev;
+    float2 gJitter;
+    float gEmissionIntensity;
     float gNearZ;
-
-
+    float gSeparator;
+    float gRoughnessOverride;
+    float gMetalnessOverride;
+    float gUnitToMetersMultiplier;
+    float gTanSunAngularRadius;
+    float gTanPixelAngularRadius;
+    float gDebug;
+    float gPrevFrameConfidence;
+    float gUnproject;
     float gAperture;
     float gFocalDistance;
-    float gExposure;
-    uint gFrameIndex;
-
+    float gFocalLength;
     float gTAA;
-    uint gSampleNum;
-    uint gBounceNum;
-    float gPrevFrameConfidence;
-
-    uint gSharcMaxAccumulatedFrameNum;
+    float gHdrScale;
+    float gExposure;
+    float gMipBias;
+    float gOrthoMode;
+    float gIndirectDiffuse;
+    float gIndirectSpecular;
+    float gMinProbability;
+    uint32_t gSharcMaxAccumulatedFrameNum;
+    uint32_t gDenoiserType;
+    uint32_t gDisableShadowsAndEnableImportanceSampling; // TODO: remove - modify GetSunIntensity to return 0 if sun is below horizon
+    uint32_t gFrameIndex;
+    uint32_t gForcedMaterial;
+    uint32_t gUseNormalMap;
+    uint32_t gBounceNum;
+    uint32_t gResolve;
+    uint32_t gValidation;
+    uint32_t gSR;
+    uint32_t gRR;
+    uint32_t gIsSrgb;
+    uint32_t gOnScreen;
+    uint32_t gTracingMode;
+    uint32_t gSampleNum;
+    uint32_t gPSR;
+    uint32_t gSHARC;
+    uint32_t gTrimLobe;
 };
 
 

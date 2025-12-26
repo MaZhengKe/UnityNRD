@@ -1,5 +1,9 @@
 #pragma kernel CSMain
 // #include "ml.hlsli"
+
+#pragma require Int64BufferAtomics
+#pragma require Native16Bit
+
 #include "RayPayload.hlsl"
 #include "NRDInclude/NRD.hlsli"
 

@@ -166,25 +166,25 @@
 //===============================================================
 // IMPORTANT: sizeof( float3 ) == 16 in C++ code!
 
-struct MorphVertex // same as utils::MorphVertex
-{
-    float16_t4 pos;
-    float16_t2 N;
-    float16_t2 T;
-};
-
-struct MorphAttributes
-{
-    float16_t2 N;
-    float16_t2 T;
-};
-
-struct MorphPrimitivePositions
-{
-    float16_t4 pos0;
-    float16_t4 pos1;
-    float16_t4 pos2;
-};
+// struct MorphVertex // same as utils::MorphVertex
+// {
+//     float16_t4 pos;
+//     float16_t2 N;
+//     float16_t2 T;
+// };
+//
+// struct MorphAttributes
+// {
+//     float16_t2 N;
+//     float16_t2 T;
+// };
+//
+// struct MorphPrimitivePositions
+// {
+//     float16_t4 pos0;
+//     float16_t4 pos1;
+//     float16_t4 pos2;
+// };
 
 struct PrimitiveData
 {
@@ -230,9 +230,8 @@ struct InstanceData
 // RESOURCES
 //===============================================================
 
-#include "NRI.hlsl"
 
-NRI_RESOURCE( cbuffer, GlobalConstants, b, 0, SET_ROOT )
+cbuffer GlobalConstants: register(b0)
 {
     float4x4 gViewToWorld;
     float4x4 gViewToClip;
@@ -300,35 +299,40 @@ NRI_RESOURCE( cbuffer, GlobalConstants, b, 0, SET_ROOT )
     uint32_t gTrimLobe;
 };
 
-NRI_RESOURCE( cbuffer, MorphMeshUpdateVerticesConstants, b, 0, SET_ROOT )
-{
-    uint4 gIndices[ MORPH_ROWS_NUM ];
-    float4 gWeights[ MORPH_ROWS_NUM ];
+// NRI_RESOURCE( cbuffer, MorphMeshUpdateVerticesConstants, b, 0, SET_ROOT )
+// {
+//     uint4 gIndices[ MORPH_ROWS_NUM ];
+//     float4 gWeights[ MORPH_ROWS_NUM ];
+//
+//     uint32_t gNumWeights;
+//     uint32_t gNumVertices;
+//     uint32_t gPositionCurrFrameOffset;
+//     uint32_t gAttributesOutputOffset;
+// };
+//
+// NRI_RESOURCE( cbuffer, MorphMeshUpdatePrimitivesConstants, b, 0, SET_ROOT )
+// {
+//     uint2 gPositionFrameOffsets;
+//     uint32_t gNumPrimitives;
+//     uint32_t gIndexOffset;
+//
+//     uint32_t gAttributesOffset;
+//     uint32_t gPrimitiveOffset;
+//     uint32_t gMorphPrimitiveOffset;
+// };
 
-    uint32_t gNumWeights;
-    uint32_t gNumVertices;
-    uint32_t gPositionCurrFrameOffset;
-    uint32_t gAttributesOutputOffset;
-};
-
-NRI_RESOURCE( cbuffer, MorphMeshUpdatePrimitivesConstants, b, 0, SET_ROOT )
-{
-    uint2 gPositionFrameOffsets;
-    uint32_t gNumPrimitives;
-    uint32_t gIndexOffset;
-
-    uint32_t gAttributesOffset;
-    uint32_t gPrimitiveOffset;
-    uint32_t gMorphPrimitiveOffset;
-};
- 
 
 #include "ml.hlsli"
-#include "NRD.hlsli"
+#include "NRDInclude/NRD.hlsli"
 
-NRI_RESOURCE( SamplerState, gLinearMipmapLinearSampler, s, 0, SET_ROOT );
-NRI_RESOURCE( SamplerState, gLinearMipmapNearestSampler, s, 1, SET_ROOT );
-NRI_RESOURCE( SamplerState, gNearestMipmapNearestSampler, s, 2, SET_ROOT );
+SamplerState sampler_TrilinearClamp;
+SamplerState sampler_LinearClamp;
+SamplerState sampler_PointClamp;
+
+#define gLinearMipmapLinearSampler  sampler_TrilinearClamp
+#define gLinearMipmapNearestSampler  sampler_LinearClamp
+#define gNearestMipmapNearestSampler  sampler_PointClamp
+
 
 #define gLinearSampler gLinearMipmapLinearSampler
 #define gNearestSampler gNearestMipmapNearestSampler
@@ -338,37 +342,37 @@ NRI_RESOURCE( SamplerState, gNearestMipmapNearestSampler, s, 2, SET_ROOT );
 //=============================================================================================
 
 // For SHARC
-float3 GetGlobalPos( float3 X )
+float3 GetGlobalPos(float3 X)
 {
     return gCameraGlobalPos.xyz * gCameraGlobalPos.w + X;
 }
 
 // Taken out from NRD
-float GetSpecMagicCurve( float roughness )
+float GetSpecMagicCurve(float roughness)
 {
-    float f = 1.0 - exp2( -200.0 * roughness * roughness );
-    f *= Math::Pow01( roughness, 0.5 );
+    float f = 1.0 - exp2(-200.0 * roughness * roughness);
+    f *= Math::Pow01(roughness, 0.5);
 
     return f;
 }
 
-float ApplyThinLensEquation( float hitDist, float curvature )
+float ApplyThinLensEquation(float hitDist, float curvature)
 {
-    return hitDist / ( 2.0 * curvature * hitDist + 1.0 );
+    return hitDist / (2.0 * curvature * hitDist + 1.0);
 }
 
-float3 GetMotion( float3 X, float3 Xprev )
+float3 GetMotion(float3 X, float3 Xprev)
 {
     float3 motion = Xprev - X;
 
-    float viewZ = Geometry::AffineTransform( gWorldToView, X ).z;
-    float2 sampleUv = Geometry::GetScreenUv( gWorldToClip, X );
+    float viewZ = Geometry::AffineTransform(gWorldToView, X).z;
+    float2 sampleUv = Geometry::GetScreenUv(gWorldToClip, X);
 
-    float viewZprev = Geometry::AffineTransform( gWorldToViewPrev, Xprev ).z;
-    float2 sampleUvPrev = Geometry::GetScreenUv( gWorldToClipPrev, Xprev );
+    float viewZprev = Geometry::AffineTransform(gWorldToViewPrev, Xprev).z;
+    float2 sampleUvPrev = Geometry::GetScreenUv(gWorldToClipPrev, Xprev);
 
     // IMPORTANT: scaling to "pixel" unit significantly improves utilization of FP16
-    motion.xy = ( sampleUvPrev - sampleUv ) * gRectSize;
+    motion.xy = (sampleUvPrev - sampleUv) * gRectSize;
 
     // IMPORTANT: 2.5D motion is preferred over 3D motion due to imprecision issues caused by FP16 rounding negative effects
     motion.z = viewZprev - viewZ;
@@ -376,95 +380,95 @@ float3 GetMotion( float3 X, float3 Xprev )
     return motion;
 }
 
-float3 ApplyExposure( float3 Lsum )
+float3 ApplyExposure(float3 Lsum)
 {
-    if( gOnScreen <= SHOW_DENOISED_SPECULAR )
+    if (gOnScreen <= SHOW_DENOISED_SPECULAR)
         Lsum *= gExposure;
 
     return Lsum;
 }
 
-float3 ApplyTonemap( float3 Lsum )
+float3 ApplyTonemap(float3 Lsum)
 {
     #if( NRD_MODE < OCCLUSION )
-        if( gOnScreen == SHOW_FINAL )
-            Lsum = gHdrScale * Color::HdrToLinear_Uncharted( Lsum );
+    if (gOnScreen == SHOW_FINAL)
+        Lsum = gHdrScale * Color::HdrToLinear_Uncharted(Lsum);
     #else
-        Lsum = Lsum.xxx;
+    Lsum = Lsum.xxx;
     #endif
 
     return Lsum;
 }
 
-float4 BicubicFilterNoCorners( Texture2D<float4> tex, SamplerState samp, float2 samplePos, float2 invResourceSize, float sharpness )
+float4 BicubicFilterNoCorners(Texture2D<float4> tex, SamplerState samp, float2 samplePos, float2 invResourceSize, float sharpness)
 {
-    float2 centerPos = floor( samplePos - 0.5 ) + 0.5;
-    float2 f = saturate( samplePos - centerPos );
+    float2 centerPos = floor(samplePos - 0.5) + 0.5;
+    float2 f = saturate(samplePos - centerPos);
     float2 f2 = f * f;
     float2 f3 = f * f2;
     float2 w0 = -sharpness * f3 + 2.0 * sharpness * f2 - sharpness * f;
-    float2 w1 = ( 2.0 - sharpness ) * f3 - ( 3.0 - sharpness ) * f2 + 1.0;
-    float2 w2 = -( 2.0 - sharpness ) * f3 + ( 3.0 - 2.0 * sharpness ) * f2 + sharpness * f;
+    float2 w1 = (2.0 - sharpness) * f3 - (3.0 - sharpness) * f2 + 1.0;
+    float2 w2 = -(2.0 - sharpness) * f3 + (3.0 - 2.0 * sharpness) * f2 + sharpness * f;
     float2 w3 = sharpness * f3 - sharpness * f2;
     float2 wl2 = w1 + w2;
-    float2 tc2 = invResourceSize * ( centerPos + w2 * Math::PositiveRcp( wl2 ) );
-    float2 tc0 = invResourceSize * ( centerPos - 1.0 );
-    float2 tc3 = invResourceSize * ( centerPos + 2.0 );
+    float2 tc2 = invResourceSize * (centerPos + w2 * Math::PositiveRcp(wl2));
+    float2 tc0 = invResourceSize * (centerPos - 1.0);
+    float2 tc3 = invResourceSize * (centerPos + 2.0);
 
     float w = wl2.x * w0.y;
-    float4 color = tex.SampleLevel( samp, float2( tc2.x, tc0.y ), 0 ) * w;
+    float4 color = tex.SampleLevel(samp, float2(tc2.x, tc0.y), 0) * w;
     float sum = w;
 
-    w = w0.x  * wl2.y;
-    color += tex.SampleLevel( samp, float2( tc0.x, tc2.y ), 0 ) * w;
+    w = w0.x * wl2.y;
+    color += tex.SampleLevel(samp, float2(tc0.x, tc2.y), 0) * w;
     sum += w;
 
     w = wl2.x * wl2.y;
-    color += tex.SampleLevel( samp, float2( tc2.x, tc2.y ), 0 ) * w;
+    color += tex.SampleLevel(samp, float2(tc2.x, tc2.y), 0) * w;
     sum += w;
 
     w = w3.x * wl2.y;
-    color += tex.SampleLevel( samp, float2( tc3.x, tc2.y ), 0 ) * w;
+    color += tex.SampleLevel(samp, float2(tc3.x, tc2.y), 0) * w;
     sum += w;
 
     w = wl2.x * w3.y;
-    color += tex.SampleLevel( samp, float2( tc2.x, tc3.y ), 0 ) * w;
+    color += tex.SampleLevel(samp, float2(tc2.x, tc3.y), 0) * w;
     sum += w;
 
-    color *= Math::PositiveRcp( sum );
+    color *= Math::PositiveRcp(sum);
 
     return color;
 }
 
-void GetCameraRay( out float3 origin, out float3 direction, float2 sampleUv )
+void GetCameraRay(out float3 origin, out float3 direction, float2 sampleUv)
 {
     // https://www.slideshare.net/TiagoAlexSousa/graphics-gems-from-cryengine-3-siggraph-2013 ( slides 23+ )
 
     // Pinhole ray
-    float3 Xv = Geometry::ReconstructViewPosition( sampleUv, gCameraFrustum, gNearZ, gOrthoMode );
-    direction = normalize( Xv );
+    float3 Xv = Geometry::ReconstructViewPosition(sampleUv, gCameraFrustum, gNearZ, gOrthoMode);
+    direction = normalize(Xv);
 
     // Distorted ray
-    float2 rnd = Rng::Hash::GetFloat2( );
-    rnd = ImportanceSampling::Cosine::GetRay( rnd ).xy;
+    float2 rnd = Rng::Hash::GetFloat2();
+    rnd = ImportanceSampling::Cosine::GetRay(rnd).xy;
     Xv.xy += rnd * gAperture;
 
     float3 Fv = direction * gFocalDistance; // z-plane
     #if 0
-        Fv /= dot( vForward, direction ); // radius
+    Fv /= dot(vForward, direction); // radius
     #endif
 
-    origin = Geometry::AffineTransform( gViewToWorld, Xv );
-    direction = gOrthoMode == 0.0 ? normalize( Geometry::RotateVector( gViewToWorld, Fv - Xv ) ) : -gViewDirection.xyz;
+    origin = Geometry::AffineTransform(gViewToWorld, Xv);
+    direction = gOrthoMode == 0.0 ? normalize(Geometry::RotateVector(gViewToWorld, Fv - Xv)) : -gViewDirection.xyz;
 }
 
-float GetCircleOfConfusion( float distance ) // diameter
+float GetCircleOfConfusion(float distance) // diameter
 {
     float F = gFocalLength; // focal lenght ( deducted from FOV )
     float A = gAperture; // aperture diameter
     float P = gFocalDistance; // focal distance
 
-    return gOrthoMode == 0.0 ? abs( A * ( F * ( P - distance ) ) / ( distance * ( P - F ) ) ) : A;
+    return gOrthoMode == 0.0 ? abs(A * (F * (P - distance)) / (distance * (P - F))) : A;
 }
 
 //=============================================================================================
@@ -474,45 +478,43 @@ float GetCircleOfConfusion( float distance ) // diameter
 #define SKY_INTENSITY 1.0
 #define SUN_INTENSITY 10.0
 
-float3 GetSunIntensity( float3 v )
+float3 GetSunIntensity(float3 v)
 {
-    float b = dot( v, gSunDirection.xyz );
-    float d = length( v - gSunDirection.xyz * b );
+    float b = dot(v, gSunDirection.xyz);
+    float d = length(v - gSunDirection.xyz * b);
 
-    float glow = saturate( 1.015 - d );
+    float glow = saturate(1.015 - d);
     glow *= b * 0.5 + 0.5;
     glow *= 0.6;
 
-    float a = Math::Sqrt01( 1.0 - b * b ) / b;
-    float sun = 1.0 - Math::SmoothStep( gTanSunAngularRadius * 0.9, gTanSunAngularRadius * 1.66 + 0.01, a );
-    sun *= float( b > 0.0 );
-    sun *= 1.0 - Math::Pow01( 1.0 - v.z, 4.85 );
-    sun *= Math::SmoothStep( 0.0, 0.1, gSunDirection.z );
+    float a = Math::Sqrt01(1.0 - b * b) / b;
+    float sun = 1.0 - Math::SmoothStep(gTanSunAngularRadius * 0.9, gTanSunAngularRadius * 1.66 + 0.01, a);
+    sun *= float(b > 0.0);
+    sun *= 1.0 - Math::Pow01(1.0 - v.z, 4.85);
+    sun *= Math::SmoothStep(0.0, 0.1, gSunDirection.z);
     sun += glow;
 
-    float3 sunColor = lerp( float3( 1.0, 0.6, 0.3 ), float3( 1.0, 0.9, 0.7 ), Math::Sqrt01( gSunDirection.z ) );
+    float3 sunColor = lerp(float3(1.0, 0.6, 0.3), float3(1.0, 0.9, 0.7), Math::Sqrt01(gSunDirection.z));
     sunColor *= sun;
 
-    sunColor *= Math::SmoothStep( -0.01, 0.05, gSunDirection.z );
+    sunColor *= Math::SmoothStep(-0.01, 0.05, gSunDirection.z);
 
-    return Color::FromGamma( sunColor ) * SUN_INTENSITY;
+    return Color::FromGamma(sunColor) * SUN_INTENSITY;
 }
 
-float3 GetSkyIntensity( float3 v )
+float3 GetSkyIntensity(float3 v)
 {
-    float atmosphere = sqrt( 1.0 - saturate( v.z ) );
+    float atmosphere = sqrt(1.0 - saturate(v.z));
 
-    float scatter = pow( saturate( gSunDirection.z ), 1.0 / 15.0 );
-    scatter = 1.0 - clamp( scatter, 0.8, 1.0 );
+    float scatter = pow(saturate(gSunDirection.z), 1.0 / 15.0);
+    scatter = 1.0 - clamp(scatter, 0.8, 1.0);
 
-    float3 scatterColor = lerp( float3( 1.0, 1.0, 1.0 ), float3( 1.0, 0.3, 0.0 ) * 1.5, scatter );
-    float3 skyColor = lerp( float3( 0.2, 0.4, 0.8 ), float3( scatterColor ), atmosphere / 1.3 );
-    skyColor *= saturate( 1.0 + gSunDirection.z );
+    float3 scatterColor = lerp(float3(1.0, 1.0, 1.0), float3(1.0, 0.3, 0.0) * 1.5, scatter);
+    float3 skyColor = lerp(float3(0.2, 0.4, 0.8), float3(scatterColor), atmosphere / 1.3);
+    skyColor *= saturate(1.0 + gSunDirection.z);
 
-    float ground = 0.5 + 0.5 * Math::SmoothStep( -1.0, 0.0, v.z );
+    float ground = 0.5 + 0.5 * Math::SmoothStep(-1.0, 0.0, v.z);
     skyColor *= ground;
 
-    return Color::FromGamma( skyColor ) * SKY_INTENSITY + GetSunIntensity( v );
+    return Color::FromGamma(skyColor) * SKY_INTENSITY + GetSunIntensity(v);
 }
-
- 

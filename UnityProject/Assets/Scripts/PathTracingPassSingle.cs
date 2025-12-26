@@ -99,32 +99,32 @@ namespace PathTracing
             // 不透明
             natCmd.SetRayTracingShaderPass(data.OpaqueTs, "Test2");
             natCmd.SetRayTracingConstantBufferParam(data.OpaqueTs, paramsID, data.ConstantBuffer, 0, data.ConstantBuffer.stride);
-            
+
             natCmd.SetRayTracingBufferParam(data.OpaqueTs, g_ScramblingRankingID, data.ScramblingRanking);
             natCmd.SetRayTracingBufferParam(data.OpaqueTs, g_SobolID, data.Sobol);
-            
+
             natCmd.SetRayTracingTextureParam(data.OpaqueTs, g_OutputID, data.OutputTexture);
-            
+
             natCmd.SetRayTracingTextureParam(data.OpaqueTs, g_MvID, data.Mv);
             natCmd.SetRayTracingTextureParam(data.OpaqueTs, g_ViewZID, data.ViewZ);
             natCmd.SetRayTracingTextureParam(data.OpaqueTs, g_Normal_RoughnessID, data.NormalRoughness);
             natCmd.SetRayTracingTextureParam(data.OpaqueTs, g_BaseColor_MetalnessID, data.BaseColorMetalness);
-            
+
             natCmd.SetRayTracingTextureParam(data.OpaqueTs, g_DirectLightingID, data.DirectLighting);
             natCmd.SetRayTracingTextureParam(data.OpaqueTs, g_DirectEmissionID, data.DirectEmission);
-            
+
             natCmd.SetRayTracingTextureParam(data.OpaqueTs, g_ShadowDataID, data.Penumbra);
             natCmd.SetRayTracingTextureParam(data.OpaqueTs, g_DiffID, data.Diff);
             natCmd.SetRayTracingTextureParam(data.OpaqueTs, g_SpecID, data.Spec);
-            
+
             natCmd.SetRayTracingTextureParam(data.OpaqueTs, gIn_PrevComposedDiffID, data.ComposedDiff);
             natCmd.SetRayTracingTextureParam(data.OpaqueTs, gIn_PrevComposedSpec_PrevViewZID, data.ComposedSpecViewZ);
-            
+
             natCmd.DispatchRays(data.OpaqueTs, "MainRayGenShader", data.Width, data.Height, 1);
-            
+
             // NRD降噪
             natCmd.IssuePluginEventAndData(GetRenderEventAndDataFunc(), 1, data.NrdDataPtr);
-            
+
             // 合成
             natCmd.SetComputeConstantBufferParam(data.CompositionCs, paramsID, data.ConstantBuffer, 0, data.ConstantBuffer.stride);
             natCmd.SetComputeTextureParam(data.CompositionCs, 0, gIn_ViewZID, data.ViewZ);
@@ -137,26 +137,26 @@ namespace PathTracing
             natCmd.SetComputeTextureParam(data.CompositionCs, 0, gIn_SpecID, data.DenoisedSpec);
             natCmd.SetComputeTextureParam(data.CompositionCs, 0, gOut_ComposedDiffID, data.ComposedDiff);
             natCmd.SetComputeTextureParam(data.CompositionCs, 0, gOut_ComposedSpec_ViewZID, data.ComposedSpecViewZ);
-            
+
             int threadGroupX = Mathf.CeilToInt(data.Width / 16.0f);
             int threadGroupY = Mathf.CeilToInt(data.Height / 16.0f);
             natCmd.DispatchCompute(data.CompositionCs, 0, threadGroupX, threadGroupY, 1);
-            
+
             // 透明
             natCmd.SetRayTracingShaderPass(data.TransparentTs, "Test2");
             natCmd.SetRayTracingConstantBufferParam(data.TransparentTs, paramsID, data.ConstantBuffer, 0, data.ConstantBuffer.stride);
             natCmd.SetRayTracingTextureParam(data.TransparentTs, gIn_ComposedDiffID, data.ComposedDiff);
             natCmd.SetRayTracingTextureParam(data.TransparentTs, gIn_ComposedSpec_ViewZID, data.ComposedSpecViewZ);
             natCmd.SetRayTracingTextureParam(data.TransparentTs, gOut_ComposedID, data.Composed);
-            
+
             natCmd.DispatchRays(data.TransparentTs, "MainRayGenShader", data.Width, data.Height, 1);
-            
-            
+
+
             // TAA
             var isEven = (data.GlobalConstants.gFrameIndex & 1) == 0;
             var taaSrc = isEven ? data.TaaHistoryPrev : data.TaaHistory;
             var taaDst = isEven ? data.TaaHistory : data.TaaHistoryPrev;
-            
+
             natCmd.SetComputeConstantBufferParam(data.TaaCs, paramsID, data.ConstantBuffer, 0, data.ConstantBuffer.stride);
             natCmd.SetComputeTextureParam(data.TaaCs, 0, gIn_MvID, data.Mv);
             natCmd.SetComputeTextureParam(data.TaaCs, 0, gIn_ComposedID, data.Composed);
@@ -164,19 +164,19 @@ namespace PathTracing
             natCmd.SetComputeTextureParam(data.TaaCs, 0, gOut_ResultID, taaDst);
             natCmd.SetComputeTextureParam(data.TaaCs, 0, gOut_DebugID, data.OutputTexture);
             natCmd.DispatchCompute(data.TaaCs, 0, threadGroupX, threadGroupY, 1);
-            
+
             // test
-            natCmd.SetRayTracingAccelerationStructure(data.opaqueTracingCs,0,gWorldTlasID, data._dataBuilder.accelerationStructure);
-            
+            natCmd.SetRayTracingAccelerationStructure(data.opaqueTracingCs, 0, gWorldTlasID, data._dataBuilder.accelerationStructure);
+
             // Debug.Log(data._dataBuilder.accelerationStructure.GetInstanceCount());
-            natCmd.SetComputeBufferParam(data.opaqueTracingCs,0, gIn_InstanceDataID, data._dataBuilder._instanceBuffer);
-            natCmd.SetComputeBufferParam(data.opaqueTracingCs,0, gIn_PrimitiveDataID, data._dataBuilder._primitiveBuffer);
-            
+            natCmd.SetComputeBufferParam(data.opaqueTracingCs, 0, gIn_InstanceDataID, data._dataBuilder._instanceBuffer);
+            natCmd.SetComputeBufferParam(data.opaqueTracingCs, 0, gIn_PrimitiveDataID, data._dataBuilder._primitiveBuffer);
+
             natCmd.SetComputeConstantBufferParam(data.opaqueTracingCs, paramsID, data.ConstantBuffer, 0, data.ConstantBuffer.stride);
             natCmd.SetComputeTextureParam(data.opaqueTracingCs, 0, gOut_DebugID, data.OutputTexture);
             natCmd.SetComputeTextureParam(data.opaqueTracingCs, 0, "gIn_Textures", Texture2D.blackTexture);
             natCmd.DispatchCompute(data.opaqueTracingCs, 0, threadGroupX, threadGroupY, 1);
-            
+
             // 显示输出
             natCmd.SetRenderTarget(data.CameraTexture);
 
@@ -294,37 +294,76 @@ namespace PathTracing
             var globalConstants = new GlobalConstants
             {
                 gViewToWorld = NrdDenoiser.worldToView.inverse,
+                gViewToClip = NrdDenoiser.viewToClip,
                 gWorldToView = NrdDenoiser.worldToView,
-                gWorldToClip = NrdDenoiser.worldToClip,
                 gWorldToViewPrev = NrdDenoiser.prevWorldToView,
+                gWorldToClip = NrdDenoiser.worldToClip,
                 gWorldToClipPrev = NrdDenoiser.prevWorldToClip,
-                gRectSize = rectSize,
-                gInvRectSize = invRectSize,
-                gJitter = NrdDenoiser.ViewportJitter / rectSize,
-                gRectSizePrev = rectSize,
-                gRenderSize = rectSize,
-                gInvRenderSize = invRectSize,
 
+                gHitDistParams = new float4(3, 0.1f, 20, -25),
                 gCameraFrustum = GetNrdFrustum(cameraData.camera),
                 gSunBasisX = new float4(gSunBasisX.x, gSunBasisX.y, gSunBasisX.z, 0),
                 gSunBasisY = new float4(gSunBasisY.x, gSunBasisY.y, gSunBasisY.z, 0),
                 gSunDirection = new float4(gSunDirection.x, gSunDirection.y, gSunDirection.z, 0),
                 gCameraGlobalPos = NrdDenoiser.camPos,
                 gCameraGlobalPosPrev = NrdDenoiser.prevCamPos,
-                gTanPixelAngularRadius = math.tan(0.5f * math.radians(horizontalFieldOfView) / cam.pixelWidth),
+                gViewDirection = new float4(cam.transform.forward, 0),
+                gHairBaseColor = new float4(0.1f, 0.1f, 0.1f, 1.0f),
 
-                gUnproject = 1.0f / (0.5f * rectH * m11),
-                gTanSunAngularRadius = math.tan(math.radians(_settings.sunAngularDiameter * 0.5f)),
+                gHairBetas = new float2(0.25f, 0.3f),
+                gOutputSize = rectSize,
+                gRenderSize = rectSize,
+                gRectSize = rectSize,
+                gInvOutputSize = invRectSize,
+                gInvRenderSize = invRectSize,
+                gInvRectSize = invRectSize,
+                gRectSizePrev = rectSize,
+                gJitter = NrdDenoiser.ViewportJitter / rectSize,
+
+                gEmissionIntensity = 1.0f,
                 gNearZ = -cam.nearClipPlane,
+                gSeparator = _settings.splitScreen,
+                gRoughnessOverride = 0,
+                gMetalnessOverride = 0,
+                gUnitToMetersMultiplier = 1.0f,
+                gTanSunAngularRadius = math.tan(math.radians(_settings.sunAngularDiameter * 0.5f)),
+                gTanPixelAngularRadius = math.tan(0.5f * math.radians(horizontalFieldOfView) / cam.pixelWidth),
+                gDebug = 0,
+                gPrevFrameConfidence = 1,
+                gUnproject = 1.0f / (0.5f * rectH * m11),
                 gAperture = _settings.dofAperture * 0.01f,
                 gFocalDistance = _settings.dofFocalDistance,
-                gExposure = _settings.exposure,
-                gFrameIndex = (uint)Time.frameCount,
+                gFocalLength = _settings.dofFocalLength,
                 gTAA = _settings.taa,
-                gSampleNum = _settings.rpp,
-                gBounceNum = _settings.bounceNum,
-                gPrevFrameConfidence = 1,
+                gHdrScale = 1.0f,
+                gExposure = _settings.exposure,
+                gMipBias = _settings.mipBias,
+                gOrthoMode = cam.orthographic ? 1.0f : 0f,
+                gIndirectDiffuse = 1.0f,
+                gIndirectSpecular = 1.0f,
+                gMinProbability = 0.0001f,
+
                 gSharcMaxAccumulatedFrameNum = 10,
+// #define DENOISER_REBLUR                     0
+// #define DENOISER_RELAX                      1
+// #define DENOISER_REFERENCE                  2
+                gDenoiserType = 1,
+                gDisableShadowsAndEnableImportanceSampling = 0,
+                gFrameIndex = (uint)Time.frameCount,
+                gForcedMaterial = 0,
+                gUseNormalMap =  1,
+                gBounceNum = _settings.bounceNum,
+                gResolve = 0,
+                gValidation =  1,
+                gSR = 0,
+                gRR =0,
+                gIsSrgb = 0,
+                gOnScreen = 1,
+                gTracingMode = 0,
+                gSampleNum = _settings.rpp,
+                gPSR = 0,
+                gSHARC = 0,
+                gTrimLobe = 0,
             };
 
             var textureDesc = resourceData.activeColorTexture.GetDescriptor(renderGraph);

@@ -1,5 +1,12 @@
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel CSMain
+
+
+#pragma require Int64BufferAtomics
+#pragma require Native16Bit
+
+
+
 // #include "ml.hlsli"
 #include "RayPayload.hlsl"
 #include "NRDInclude/NRD.hlsli"
