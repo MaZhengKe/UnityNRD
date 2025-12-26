@@ -102,6 +102,23 @@ struct MainRayPayload
     }
 };
 
+
+// Instance flags
+#define FLAG_FIRST_BIT                      24 // this + number of flags must be <= 32
+#define NON_FLAG_MASK                       ( ( 1 << FLAG_FIRST_BIT ) - 1 )
+
+#define FLAG_NON_TRANSPARENT                0x01 // geometry flag: non-transparent
+#define FLAG_TRANSPARENT                    0x02 // geometry flag: transparent
+#define FLAG_FORCED_EMISSION                0x04 // animated emissive cube
+#define FLAG_STATIC                         0x08 // no velocity
+#define FLAG_HAIR                           0x10 // hair
+#define FLAG_LEAF                           0x20 // leaf
+#define FLAG_SKIN                           0x40 // skin
+#define FLAG_MORPH                          0x80 // morph
+
+#define GEOMETRY_ALL                        ( FLAG_NON_TRANSPARENT | FLAG_TRANSPARENT )
+
+
 struct GeometryProps
 {
     float3 X; // 命中点的世界空间坐标
@@ -111,8 +128,10 @@ struct GeometryProps
     float3 N; // 法线向量（世界空间）
     float hitT; // 光线命中的距离（t值），INF表示未命中
     float mip;
+    float2 uv;
     float curvature; // 曲率估算值（用于材质、去噪等）
     uint instanceIndex; // 命中的实例索引（用于查找InstanceData）
+    uint textureOffsetAndFlags;
 
     #define PT_BOUNCE_RAY_OFFSET                0.25 // pixels
 
@@ -124,6 +143,19 @@ struct GeometryProps
         return X + offsetDir * max(amount, 0.00001);
     }
 
+    uint GetBaseTexture( )
+    { return textureOffsetAndFlags & NON_FLAG_MASK; }
+
+    
+    bool Has( uint flag )
+    { return ( textureOffsetAndFlags & ( flag << FLAG_FIRST_BIT ) ) != 0; }
+    
+    
+    float3 GetForcedEmissionColor( )
+    { return ( ( textureOffsetAndFlags >> 2 ) & 0x1 ) ? float3( 1.0, 0.0, 0.0 ) : float3( 0.0, 1.0, 0.0 ); }
+
+    
+    
     bool IsMiss()
     {
         return hitT == INF;
