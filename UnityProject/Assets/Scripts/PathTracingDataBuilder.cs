@@ -357,5 +357,10 @@ namespace DefaultNamespace
 
             return new half2(bSigned ? v.xy : 0.5f * v.xy + 0.5f);
         }
+
+        public bool IsEmpty()
+        {
+            return instanceDataList.Count == 0 || primitiveDataList.Count == 0;
+        }
     }
 }

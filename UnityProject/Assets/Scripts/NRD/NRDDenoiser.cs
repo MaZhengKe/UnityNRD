@@ -339,8 +339,12 @@ namespace Nrd
                 buffer.Dispose();
             }
 
-            var request = AsyncGPUReadback.Request(allocatedResources[0].Handle);
-            request.WaitForCompletion();
+            if (allocatedResources.Count > 0 && allocatedResources[0].IsCreated)
+            {
+                var request = AsyncGPUReadback.Request(allocatedResources[0].Handle);
+                request.WaitForCompletion();
+            }
+            
 
             ReleaseTextures();
             DestroyDenoiserInstance(nrdInstanceId);

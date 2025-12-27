@@ -182,6 +182,9 @@ void NrdInstance::DispatchCompute(FrameData* data)
 
         s_d3d12->NotifyResourceState(rawResource, state, isUAV);
     }
+    
+    ID3D12DescriptorHeap* emptyHeaps[] = { nullptr };
+    recording_state.commandList->SetDescriptorHeaps(0,   emptyHeaps);
 
     RenderSystem::Get().GetNriCore().DestroyCommandBuffer(nriCmdBuffer);
 }

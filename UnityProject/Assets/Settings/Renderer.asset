@@ -80,7 +80,7 @@ MonoBehaviour:
     isBaseColorMetalnessAvailable: 1
     planeDistanceSensitivity: 0.212
     maxStabilizedFrameNum: 5
-    showMode: 14
+    showMode: 12
     showMV: 0
     showValidation: 0
     dofAperture: 0
@@ -91,6 +91,6 @@ MonoBehaviour:
     rpp: 1
     bounceNum: 1
     mipBias: 0
-    inline: 1
+    inline: 0
   gIn_ScramblingRanking: {fileID: 2800000, guid: ba45d1e4dcf9022438a4798a5f9e7b80, type: 3}
   gIn_Sobol: {fileID: 2800000, guid: 17e7ce8147355314ea8aab1178a6a43c, type: 3}

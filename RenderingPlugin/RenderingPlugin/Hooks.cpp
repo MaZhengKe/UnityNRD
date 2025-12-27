@@ -60,14 +60,24 @@ static const GUID MeetemBindlessData =
 
 struct CommandListStateData
 {
+    // 当前是否正在使用一个被修改过的根签名
     unsigned isInHookedCmpRootSig : 1;
     unsigned isInHookedGfxRootSig : 1;
 
+    // 当前是否已经分配了被修改过的描述符表 
+    // 防止重复绑定/竞态：Unity 可能会多次调用 SetRootDescriptorTable
+    // 在 Hooked_SetComputeRootDescriptorTable 中，当我们第一次拦截到 Unity 绑定纹理的操作时，我们会顺带把我们自己的 Bindless Table 绑上去，并将此位设为 true。
+    // 如果此位已经是 true，说明 Bindless 槽位已经填上了，不需要再次操作
     unsigned isHookedCmpDescSetAssigned : 1;
     unsigned isHookedGfxDescSetAssigned : 1;
 
+    // 当前 CommandList 绑定的描述符堆（Descriptor Heap）的索引
+    // Bindless 纹理必须从这个特定的堆中通过偏移量（Offset）来定位
     unsigned assignedHookedHeap : 16;
 
+    // Bindless 槽位在根签名中的索引（RootParameterIndex）。
+    // 我们在 Hooked_CreateRootSignature 中动态地在原始根签名的末尾添加了一个新的 Descriptor Table
+    // 原始根签名有 4 个参数（0-3），我们添加了一个作为第 5 个（Index 4）。那么 bindless...DescId 就会存储这个值（通常 +1 处理以区分 0）
     unsigned bindlessCmpSrvDescId;
     unsigned bindlessGfxSrvDescId;
     //unsigned remains;
@@ -468,15 +478,14 @@ extern "C" static HRESULT STDMETHODCALLTYPE Hooked_CreateDescriptorHeap(ID3D12De
                                                                         REFIID riid,
                                                                         _COM_Outptr_ void** ppvHeap)
 {
-    UnityLog::Debug("Hooked_CreateDescriptorHeap called.");
-
     if (pDescriptorHeapDesc->Type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)
     {
         uint32_t additional = 1024;
+        // 是否需要 Hook
         bool hooked = false;
 
         UINT num = pDescriptorHeapDesc->NumDescriptors;
-        UnityLog::Debug(" Number of Descriptors: %d", num);
+        UnityLog::Debug("[CreateDescriptorHeap] called Number of Descriptors: %d", num);
 
         if (pDescriptorHeapDesc->NumDescriptors >= mainDescHeapMagic)
         {
@@ -489,11 +498,12 @@ extern "C" static HRESULT STDMETHODCALLTYPE Hooked_CreateDescriptorHeap(ID3D12De
 
         auto ptr = (ID3D12DescriptorHeap*)*ppvHeap;
 
+        // 不管是否 Hook，都记录下来
         srvDescriptorHeaps.push_back(ptr);
         if (hooked)
         {
             hookedDescriptorHeaps.push_back(ptr);
-            UnityLog::Debug("Hooked CBV_SRV_UAV Descriptor Heap created for pointer : %p, total descriptors: %d\n", ptr, pDescriptorHeapDesc->NumDescriptors);
+            UnityLog::Debug("    Hooked CBV_SRV_UAV Descriptor Heap created for pointer : %p, total descriptors: %d\n", ptr, pDescriptorHeapDesc->NumDescriptors);
         }
 
         return res;
@@ -534,15 +544,18 @@ static void STDMETHODCALLTYPE Hooked_SetGraphicsRootSignature(ID3D12GraphicsComm
 extern "C" static void STDMETHODCALLTYPE Hooked_SetComputeRootSignature(ID3D12GraphicsCommandList* This,
                                                                         _In_opt_ ID3D12RootSignature* pRootSignature)
 {
-    HookedRootSignature d{};
-    auto hasDescHook = TryGetBindlessData(pRootSignature, d);
+    HookedRootSignature hooked_root_signature{};
+    // 判断这个根签名是不是被修改为需要bindless的
+    auto hasDescHook = TryGetBindlessData(pRootSignature, hooked_root_signature);
     auto dt = GetCommandListState(This);
-    // UnityLog::Debug("Setting compute root sig: %d %p\n", hasDescHook, pRootSignature);
+    UnityLog::Debug("[SetComputeRootSignature] hasDescHook: %d ,pRootSignature: %p\n", hasDescHook, pRootSignature);
 
     if (!hasDescHook)
     {
         if (IsCommandStateHadBindless(dt))
         {
+            // 如果是不需要bindless的，且当前cmdList在bindless状态
+            // 就标志cmdList为不需要bindless状态
             dt.isInHookedCmpRootSig = false;
             dt.isHookedCmpDescSetAssigned = false;
             dt.bindlessCmpSrvDescId = NoBindless;
@@ -551,10 +564,12 @@ extern "C" static void STDMETHODCALLTYPE Hooked_SetComputeRootSignature(ID3D12Gr
     }
     else
     {
-        dt.isInHookedCmpRootSig = hasDescHook;
+        // 标记为需要bindless
+        dt.isInHookedCmpRootSig = true;
+        // 当前还没有分配bindless描述符表
         dt.isHookedCmpDescSetAssigned = false;
-        //dt.isHookedHeapAssigned = false;
-        dt.bindlessCmpSrvDescId = hasDescHook ? (d.descriptorId + 1) : NoBindless;
+        // 记录bindless描述符表在根签名中的索引
+        dt.bindlessCmpSrvDescId = hooked_root_signature.descriptorId + 1;
         SetCommandListState(This, dt);
     }
 
@@ -562,14 +577,14 @@ extern "C" static void STDMETHODCALLTYPE Hooked_SetComputeRootSignature(ID3D12Gr
 }
 
 
+// 监听设置描述符堆-如果没有设置我们需要的堆，就强制设置上，如果有，要记录当前绑定的堆索引
 extern "C" static void STDMETHODCALLTYPE Hooked_SetDescriptorHeaps(ID3D12GraphicsCommandList10* This,
                                                                    _In_ UINT NumDescriptorHeaps,
                                                                    _In_reads_(NumDescriptorHeaps) ID3D12DescriptorHeap* const* ppDescriptorHeaps)
 {
     // 1. 获取当前 CommandList 的状态跟踪对象
-    // 因为会有多个线程同时记录不同的 CommandList，所以需要 dt 来记录当前这个列表是否开启了 Bindless 等信息
-    auto dt = GetCommandListState(This);
-    // UnityLog::Debug("Setting descriptor heaps: %d %d %d\n", NumDescriptorHeaps, dt.isInHookedCmpRootSig, dt.isInHookedGfxRootSig);
+    auto cmdListState = GetCommandListState(This);
+    UnityLog::Debug("[SetDescriptorHeaps] NumDescriptorHeaps: %d isInHookedCmpRootSig %d isInHookedGfxRootSig %d\n", NumDescriptorHeaps, cmdListState.isInHookedCmpRootSig, cmdListState.isInHookedGfxRootSig);
 
     // 2. 防护措施：如果我们还没成功 Hook 到任何堆，就直接走原始逻辑
     if (hookedDescriptorHeaps.empty())
@@ -579,25 +594,27 @@ extern "C" static void STDMETHODCALLTYPE Hooked_SetDescriptorHeaps(ID3D12Graphic
         return;
     }
 
-
     ID3D12DescriptorHeap* heaps[128];
 
     // 4. 处理空绑定情况：如果 Unity 想要取消绑定所有堆
     if (ppDescriptorHeaps == nullptr || NumDescriptorHeaps == 0u)
     {
         // 如果之前处于 Bindless 状态，现在要清空它
-        if (IsCommandStateHadBindless(dt))
+        if (IsCommandStateHadBindless(cmdListState))
         {
-            dt.isHookedCmpDescSetAssigned = false;
-            dt.isHookedGfxDescSetAssigned = false;
-            dt.assignedHookedHeap = 0;
-            SetCommandListState(This, dt);
+            cmdListState.isHookedCmpDescSetAssigned = false;
+            cmdListState.isHookedGfxDescSetAssigned = false;
+            cmdListState.assignedHookedHeap = 0;
+            SetCommandListState(This, cmdListState);
         }
 
         return OrigSetDescriptorHeaps(This, NumDescriptorHeaps, ppDescriptorHeaps);
     }
 
+    // 检测当前绑定的堆，看看是否包含我们之前记录的Hook堆
     unsigned assigned = 0;
+    
+    // 检测当前绑定的堆中，是否包含我们之前记录的堆
     bool hasSrvHeap = false;
 
     const auto& srvDescHeaps = srvDescriptorHeaps;
@@ -606,6 +623,16 @@ extern "C" static void STDMETHODCALLTYPE Hooked_SetDescriptorHeaps(ID3D12Graphic
     for (int i = 0; i < NumDescriptorHeaps; i++)
     {
         auto h = ppDescriptorHeaps[i];
+        
+        auto gpu_descriptor_handle_for_heap_start = h->GetGPUDescriptorHandleForHeapStart();
+        auto cpu_descriptor_handle_for_heap_start = h->GetCPUDescriptorHandleForHeapStart();
+        
+        UnityLog::Debug("    Descriptor Heap %d: ptr %p, num %d, type %d, flags %d, gpu_handle %p, cpu_handle %p\n",
+                        i, h, h->GetDesc().NumDescriptors, h->GetDesc().Type, h->GetDesc().Flags,
+                        (void*)(size_t)gpu_descriptor_handle_for_heap_start.ptr,
+                        (void*)(size_t)cpu_descriptor_handle_for_heap_start.ptr);
+        
+        // 记录当前绑定的堆
         heaps[i] = h;
 
         if (h != nullptr)
@@ -629,6 +656,7 @@ extern "C" static void STDMETHODCALLTYPE Hooked_SetDescriptorHeaps(ID3D12Graphic
         }
     }
 
+    // 如果没有找到绑定的堆，强制绑定第一个 Hook 堆
     if (!assigned && !hasSrvHeap)
     {
         heaps[NumDescriptorHeaps] = hookedHeaps[0];
@@ -639,11 +667,14 @@ extern "C" static void STDMETHODCALLTYPE Hooked_SetDescriptorHeaps(ID3D12Graphic
     // 找到了绑定的堆，更新状态
 
 
-    dt.assignedHookedHeap = assigned;
-    dt.isHookedCmpDescSetAssigned = false;
-    dt.isHookedGfxDescSetAssigned = false;
+    // 记录下绑定的堆索引
+    cmdListState.assignedHookedHeap = assigned;
+    
+    // 重置描述符表绑定状态，等待下一次 SetRootDescriptorTable 调用时重新绑定
+    cmdListState.isHookedCmpDescSetAssigned = false;
+    cmdListState.isHookedGfxDescSetAssigned = false;
     // 记录
-    SetCommandListState(This, dt);
+    SetCommandListState(This, cmdListState);
 
     // 传入修改后的堆数组
     return OrigSetDescriptorHeaps(This, NumDescriptorHeaps, heaps);
@@ -657,6 +688,7 @@ inline int getCurrentOffset()
     return currentFrameBindlessOffset;
 }
 
+// 
 extern "C" static void STDMETHODCALLTYPE Hooked_SetComputeRootDescriptorTable(ID3D12CommandList* list,
                                                                               _In_ UINT RootParameterIndex,
                                                                               _In_ D3D12_GPU_DESCRIPTOR_HANDLE BaseDescriptor)
@@ -670,32 +702,39 @@ extern "C" static void STDMETHODCALLTYPE Hooked_SetComputeRootDescriptorTable(ID
         UnityLog::LogWarning("SetComputeRootDescriptorTable is called, but no srvHeap is set.\n");
         return;
     }
-
+    
+    UnityLog::Debug("[SetComputeRootDescriptorTable] GPU Handle ptr: %p\n", (void*)(size_t)BaseDescriptor.ptr);
+    
     OrigSetComputeRootDescriptorTable(list, RootParameterIndex, BaseDescriptor);
 
 
+    // 如果当前cmdList的根签名是被修改过的，且已经给了要绑定的堆索引，并且有bindless槽位
     if (dt.isInHookedCmpRootSig && dt.assignedHookedHeap && (dt.bindlessCmpSrvDescId != NoBindless))
     {
         auto targetIdx = dt.bindlessCmpSrvDescId - 1;
 
+        // 如果要绑定的槽位是bindless槽位，或者还没有绑定过bindless描述符表
         if (RootParameterIndex == (targetIdx) || !dt.isHookedCmpDescSetAssigned)
         {
+            // 标记已经绑定过bindless描述符表
             dt.isHookedCmpDescSetAssigned = true;
             SetCommandListState(gfxList, dt);
 
-            // UnityLog::Debug("Set compute root descriptor table for bindless: (hooked %d) -> %d with offset %d\n", RootParameterIndex, targetIdx, srvBaseOffset);
+            UnityLog::Debug("    Set compute root descriptor table for bindless: (hooked %d) -> %d with offset %d\n", RootParameterIndex, targetIdx, srvBaseOffset);
 
             auto assignedHeap = hookedDescriptorHeaps[dt.assignedHookedHeap - 1];
             CD3DX12_GPU_DESCRIPTOR_HANDLE gpuHandle(assignedHeap->GetGPUDescriptorHandleForHeapStart());
             gpuHandle.Offset(srvBaseOffset * srvIncrement);
             gpuHandle.Offset(getCurrentOffset() * srvIncrement);
+            
+            UnityLog::Debug("    Final hook GPU Handle ptr: %p\n", (void*)(size_t)gpuHandle.ptr);
 
             OrigSetComputeRootDescriptorTable(list, targetIdx, gpuHandle);
         }
         // Unity assigned descriptor
         else if (RootParameterIndex == (targetIdx))
         {
-            UnityLog::LogWarning("Unity forcefully unset bindless\n");
+            UnityLog::LogWarning("    Unity forcefully unset bindless\n");
             dt.isHookedCmpDescSetAssigned = false;
             SetCommandListState(gfxList, dt);
         }
