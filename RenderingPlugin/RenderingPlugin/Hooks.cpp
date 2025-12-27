@@ -80,6 +80,8 @@ struct CommandListStateData
     // 原始根签名有 4 个参数（0-3），我们添加了一个作为第 5 个（Index 4）。那么 bindless...DescId 就会存储这个值（通常 +1 处理以区分 0）
     unsigned bindlessCmpSrvDescId;
     unsigned bindlessGfxSrvDescId;
+    
+    ID3D12DescriptorHeap* savedHeaps[2];
     //unsigned remains;
 };
 
@@ -275,6 +277,9 @@ extern "C" HRESULT STDMETHODCALLTYPE Hooked_CreateRootSignature(
     REFIID riid,
     _COM_Outptr_ void** ppvRootSignature)
 {
+    
+    
+    
     ID3D12RootSignatureDeserializer* deserializer;
     auto hr = D3D12CreateRootSignatureDeserializer(pBlobWithRootSignature, blobLengthInBytes, IID_PPV_ARGS(&deserializer));
 
@@ -584,7 +589,24 @@ extern "C" static void STDMETHODCALLTYPE Hooked_SetDescriptorHeaps(ID3D12Graphic
 {
     // 1. 获取当前 CommandList 的状态跟踪对象
     auto cmdListState = GetCommandListState(This);
-    UnityLog::Debug("[SetDescriptorHeaps] NumDescriptorHeaps: %d isInHookedCmpRootSig %d isInHookedGfxRootSig %d\n", NumDescriptorHeaps, cmdListState.isInHookedCmpRootSig, cmdListState.isInHookedGfxRootSig);
+    
+    if (NumDescriptorHeaps == 2)
+    {
+        cmdListState.savedHeaps[0] = ppDescriptorHeaps[0];
+        cmdListState.savedHeaps[1] = ppDescriptorHeaps[1];
+    }
+    
+    // 特定标记
+    if (NumDescriptorHeaps == 114)
+    {
+        UnityLog::Debug("[SetDescriptorHeaps] Restoring last heaps %d \n", NumDescriptorHeaps);
+        OrigSetDescriptorHeaps(This,2, cmdListState.savedHeaps);
+        return;
+    }
+    
+    
+    
+    UnityLog::Debug("[SetDescriptorHeaps] NumDescriptorHeaps: %d,point %p, isInHookedCmpRootSig %d isInHookedGfxRootSig %d\n", NumDescriptorHeaps,ppDescriptorHeaps, cmdListState.isInHookedCmpRootSig, cmdListState.isInHookedGfxRootSig);
 
     // 2. 防护措施：如果我们还没成功 Hook 到任何堆，就直接走原始逻辑
     if (hookedDescriptorHeaps.empty())

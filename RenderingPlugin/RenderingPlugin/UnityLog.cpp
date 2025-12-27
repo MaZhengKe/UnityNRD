@@ -7,7 +7,7 @@
 
 #include "UnityLog.h"
 
-#define  _BINDLESS_DEBUG 1
+#define  _BINDLESS_DEBUG 0
 
 #if _BINDLESS_DEBUG
 #include <Windows.h>
