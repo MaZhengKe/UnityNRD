@@ -101,7 +101,6 @@ namespace DefaultNamespace
 
             // 如果没添加过，则按顺序连续存入 4 张
             startIndex = (uint)globalTexturePool.Count;
-            Debug.Log("startIndex : " + startIndex);
             globalTexturePool.Add(texBase); // index + 0
             globalTexturePool.Add(texMask); // index + 1
             globalTexturePool.Add(texNormal); // index + 2

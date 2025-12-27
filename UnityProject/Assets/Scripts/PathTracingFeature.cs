@@ -156,9 +156,16 @@ namespace PathTracing
 
         private PathTracingDataBuilder _dataBuilder = new PathTracingDataBuilder();
 
-        public override void Create()
+
+        [ContextMenu("ReBuild AccelerationStructure")]
+        public void ReBuild()
         {
             _dataBuilder.Build();
+        }
+        
+        
+        public override void Create()
+        {
 
             if (accelerationStructure == null)
             {

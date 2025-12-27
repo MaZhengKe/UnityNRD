@@ -362,7 +362,12 @@ MaterialProps GetMaterialProps( GeometryProps geometryProps )
     float metalness = saturate( materialProps.z * instanceData.baseColorAndMetalnessScale.w );
 
     // Normal
-    coords = GetSamplingCoords( baseTexture + 2, geometryProps.uv * instanceData.normalUvScale, geometryProps.mip, MIP_LESS_SHARP );
+    
+    float2 normalUV = float2(geometryProps.uv.x, 1 - geometryProps.uv.y); // 修正UV翻转问题
+    coords = GetSamplingCoords( baseTexture + 2, normalUV * instanceData.normalUvScale, geometryProps.mip, MIP_LESS_SHARP );
+    
+     
+    
     float2 packedNormal = gIn_Textures[ NonUniformResourceIndex( baseTexture + 2 ) ].SAMPLE( coords ).xy;
     float3 N = gUseNormalMap ? Geometry::TransformLocalNormal( packedNormal, geometryProps.T, geometryProps.N ) : geometryProps.N;
     float3 T = geometryProps.T.xyz;

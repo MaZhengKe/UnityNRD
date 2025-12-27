@@ -12,9 +12,71 @@
 #include "RaytracingShared.hlsl"
 
 
-RWTexture2D<float4> gOut_Debug;
+StructuredBuffer<uint4> gIn_ScramblingRanking;
+StructuredBuffer<uint4> gIn_Sobol;
 
 
+Texture2D<float3> gIn_PrevComposedDiff;
+Texture2D<float4> gIn_PrevComposedSpec_PrevViewZ;
+
+
+// Output
+RWTexture2D<float3> g_Output;
+
+// 运动矢量（Motion Vector），用于描述像素在当前帧与上一帧之间的运动，以及视深（ViewZ）和TAA遮罩信息。
+RWTexture2D<float4> gOut_Mv;
+// 视空间深度（ViewZ），即像素在视空间中的Z值。
+RWTexture2D<float> gOut_ViewZ;
+// 法线、粗糙度和材质ID的打包信息。用于后续的去噪和材质区分。
+RWTexture2D<float4> gOut_Normal_Roughness;
+// 基础色（BaseColor，已转为sRGB）和金属度（Metalness）。
+RWTexture2D<float4> gOut_BaseColor_Metalness;
+
+// 直接光照（Direct Lighting），即主光线命中点的直接光照结果。
+RWTexture2D<float3> gOut_DirectLighting;
+// 直接自发光（Direct Emission），即材质的自发光分量。
+RWTexture2D<float3> gOut_DirectEmission;
+
+// 阴影数据（Shadow Data），如半影宽度等，用于软阴影和去噪。
+RWTexture2D<float> gOut_ShadowData;
+// 漫反射光照结果（Diffuse Radiance），包含噪声和打包后的信息。
+RWTexture2D<float4> gOut_Diff;
+// 高光反射光照结果（Specular Radiance），包含噪声和打包后的信息。
+RWTexture2D<float4> gOut_Spec;
+
+
+
+float2 GetBlueNoise( uint2 pixelPos, bool isCheckerboard, uint seed = 0 )
+{
+    // https://eheitzresearch.wordpress.com/772-2/
+    // https://belcour.github.io/blog/research/publication/2019/06/17/sampling-bluenoise.html
+
+    // Sample index
+    uint frameIndex = isCheckerboard ? ( gFrameIndex >> 1 ) : gFrameIndex;
+    uint sampleIndex = ( frameIndex + seed ) & ( BLUE_NOISE_TEMPORAL_DIM - 1 );
+
+    uint2 uv = pixelPos & (BLUE_NOISE_SPATIAL_DIM - 1);
+    uint index = uv.x + uv.y * BLUE_NOISE_SPATIAL_DIM;
+    
+    
+    // The algorithm
+    uint3 A = gIn_ScramblingRanking[ index ];
+    uint rankedSampleIndex = sampleIndex ^ A.z;
+    uint4 B = gIn_Sobol[ ( rankedSampleIndex & 255) ];
+    float4 blue = ( float4( B ^ A.xyxy ) + 0.5 ) * ( 1.0 / 256.0 );
+
+    // ( Optional ) Randomize in [ 0; 1 / 256 ] area to get rid of possible banding
+    uint d = Sequence::Bayer4x4ui( pixelPos, gFrameIndex );
+    float2 dither = ( float2( d & 3, d >> 2 ) + 0.5 ) * ( 1.0 / 4.0 );
+    blue += ( dither.xyxy - 0.5 ) * ( 1.0 / 256.0 );
+
+    // Don't use blue noise in these cases
+    [flatten]
+    if( gDenoiserType == DENOISER_REFERENCE || gRR || gTracingMode == RESOLUTION_FULL_PROBABILISTIC )
+        blue.xy = Rng::Hash::GetFloat2( );
+
+    return saturate( blue.xy );
+}
 
 struct TraceOpaqueResult
 {
@@ -417,6 +479,47 @@ float3 Cover(float3 X)
     return normal;
 }
 
+
+void WriteResult( uint2 pixelPos, float4 diff, float4 spec, float4 diffSh, float4 specSh )
+{
+    uint2 outPixelPos = pixelPos;
+    if (gTracingMode == RESOLUTION_HALF)
+        outPixelPos.x >>= 1;
+
+    uint checkerboard = Sequence::CheckerBoard( pixelPos, gFrameIndex ) != 0;
+
+    if( gTracingMode == RESOLUTION_HALF )
+    {
+        if( checkerboard )
+        {
+            gOut_Diff[ outPixelPos ] = diff;
+
+            #if( NRD_MODE == SH )
+            gOut_DiffSh[ outPixelPos ] = diffSh;
+            #endif
+        }
+        else
+        {
+            gOut_Spec[ outPixelPos ] = spec;
+
+            #if( NRD_MODE == SH )
+            gOut_SpecSh[ outPixelPos ] = specSh;
+            #endif
+        }
+    }
+    else
+    {
+        gOut_Diff[ outPixelPos ] = diff;
+        gOut_Spec[ outPixelPos ] = spec;
+
+        #if( NRD_MODE == SH )
+        gOut_DiffSh[ outPixelPos ] = diffSh;
+        gOut_SpecSh[ outPixelPos ] = specSh;
+        #endif
+    }
+}
+
+
 [numthreads(16,16,1)]
 void CSMain(int2 pixelPos : SV_DispatchThreadID)
 {
@@ -512,17 +615,17 @@ void CSMain(int2 pixelPos : SV_DispatchThreadID)
     float3 XvirtualPrev = Xvirtual + geometryProps0.Xprev - geometryProps0.X;
     float3 motion = GetMotion( Xvirtual, XvirtualPrev );
 
-    // gOut_Mv[ pixelPos ] = float4( motion, viewZAndTaaMask0 ); // IMPORTANT: keep viewZ before PSR ( needed for glass )
+    gOut_Mv[ pixelPos ] = float4( motion, viewZAndTaaMask0 ); // IMPORTANT: keep viewZ before PSR ( needed for glass )
 
     // ViewZ
     float viewZ = -Geometry::AffineTransform( gWorldToView, Xvirtual ).z;
     viewZ = geometryProps0.IsMiss( ) ? Math::Sign( viewZ ) * INF : viewZ;
 
-    // gOut_ViewZ[ pixelPos ] = viewZ;
+    gOut_ViewZ[ pixelPos ] = viewZ;
     
     
     // Emission
-    // gOut_DirectEmission[ pixelPos ] = materialProps0.Lemi * psrThroughput;
+    gOut_DirectEmission[ pixelPos ] = materialProps0.Lemi * psrThroughput;
 
     
     // Early out
@@ -542,16 +645,16 @@ void CSMain(int2 pixelPos : SV_DispatchThreadID)
     float materialID = GetMaterialID( geometryProps0, materialProps0 );
     
     
-    // gOut_Normal_Roughness[ pixelPos ] = NRD_FrontEnd_PackNormalAndRoughness( N, materialProps0.roughness, materialID );
+    gOut_Normal_Roughness[ pixelPos ] = NRD_FrontEnd_PackNormalAndRoughness( N, materialProps0.roughness, materialID );
 
     // Base color and metalness
-    // gOut_BaseColor_Metalness[ pixelPos ] = float4( Color::ToSrgb( materialProps0.baseColor ), materialProps0.metalness );
+    gOut_BaseColor_Metalness[ pixelPos ] = float4( Color::ToSrgb( materialProps0.baseColor ), materialProps0.metalness );
     
     // Direct lighting
     float3 Xshadow;
     float3 Ldirect = GetLighting( geometryProps0, materialProps0, LIGHTING | SSS, Xshadow );
 
-    // gOut_DirectLighting[ pixelPos ] = Ldirect; // "psrThroughput" applied in "Composition"
+    gOut_DirectLighting[ pixelPos ] = Ldirect; // "psrThroughput" applied in "Composition"
     // gOut_PsrThroughput[ pixelPos ] = psrThroughput;
 
     // Lighting at PSR hit, if found
@@ -573,29 +676,98 @@ void CSMain(int2 pixelPos : SV_DispatchThreadID)
     //     Lpsr.xyz *= Lpsr.w;
     // }
 
+    //================================================================================================================================================================================
+    // Secondary rays
+    //================================================================================================================================================================================
+
     TraceOpaqueResult result = TraceOpaque( geometryProps0, materialProps0, pixelPos, mirrorMatrix, Lpsr );
 
-    
+    #if( USE_MOVING_EMISSION_FIX == 1 )
+    // Or emissives ( not having lighting in diffuse and specular ) can use a different material ID
+    result.diffRadiance += materialProps0.Lemi / Math::Pi( 2.0 );
+    result.specRadiance += materialProps0.Lemi / Math::Pi( 2.0 );
+    #endif
     
  
+    //================================================================================================================================================================================
+    // Sun shadow
+    //================================================================================================================================================================================
 
-    // float debugv = geometryProps0.instanceIndex / 4.0;
+    geometryProps0.X = Xshadow;
 
-    // gOut_Debug[pixelPos] = float4( cameraRayDirection, 1.0 );
+    float2 rnd = GetBlueNoise( pixelPos, false );
+    rnd = ImportanceSampling::Cosine::GetRay( rnd ).xy;
+    rnd *= gTanSunAngularRadius;
+    
+    float3 sunDirection = normalize( gSunBasisX.xyz * rnd.x + gSunBasisY.xyz * rnd.y + gSunDirection.xyz );
+    float3 Xoffset = geometryProps0.GetXoffset( sunDirection, PT_SHADOW_RAY_OFFSET );
+    float2 mipAndCone = GetConeAngleFromAngularRadius( geometryProps0.mip, gTanSunAngularRadius );
+    
+    
+    float shadowTranslucency = ( Color::Luminance( Ldirect ) != 0.0 && !gDisableShadowsAndEnableImportanceSampling ) ? 1.0 : 0.0;
+    float shadowHitDist = 0.0;
 
-    // gOut_Debug[pixelPos] = float4(geometryProps0.uv, 0, 1.0);
-    // gOut_Debug[pixelPos] = float4( 1,0,0, 1.0 );
+    
+    while( shadowTranslucency > 0.01 )
+    {
+        GeometryProps geometryPropsShadow = CastRay( Xoffset, sunDirection, 0.0, INF, mipAndCone, gWorldTlas, GEOMETRY_ALL, 0 );
 
-    // float2 textureIds = pixelUv * 10;
-    // int texIdFlat = int(int(textureIds.x) + int(textureIds.y) * 10);
-    // texIdFlat = max(texIdFlat, 0);
-    //
+        // Update hit dist
+        shadowHitDist += geometryPropsShadow.hitT;
 
-    // float c = sqrt( abs( materialProps0.curvature ) ) * 0.1;
+        // Terminate on miss ( before updating translucency! )
+        if( geometryPropsShadow.IsMiss( ) )
+            break;
 
-    // gOut_Debug[pixelPos] =  float4( c, c, c, 1.0 );
-    // gOut_Debug[pixelPos] = float4(materialProps0.curvature,materialProps0.curvature,materialProps0.curvature, 1.0);
-    // gOut_Debug[pixelPos] = float4(geometryProps0.curvature,geometryProps0.curvature,geometryProps0.curvature, 1.0);
-    // gOut_Debug[pixelPos] = float4(Cover(materialProps0.metalness), 1.0);
-    gOut_Debug[pixelPos] = float4(result.diffRadiance, 1.0);
+        // ( Biased ) Cheap approximation of shadows through glass
+        float NoV = abs( dot( geometryPropsShadow.N, sunDirection ) );
+        shadowTranslucency *= lerp( geometryPropsShadow.Has( FLAG_TRANSPARENT ) ? 0.9 : 0.0, 0.0, Math::Pow01( 1.0 - NoV, 2.5 ) );
+
+        // Go to the next hit
+        Xoffset += sunDirection * ( geometryPropsShadow.hitT + 0.001 );
+    }
+    
+    float penumbra = SIGMA_FrontEnd_PackPenumbra( shadowHitDist, gTanSunAngularRadius );
+    
+    
+    gOut_ShadowData[ pixelPos ] = penumbra;
+    
+
+    //================================================================================================================================================================================
+    // Output
+    //================================================================================================================================================================================
+
+    float4 outDiff = 0.0;
+    float4 outSpec = 0.0;
+    float4 outDiffSh = 0.0;
+    float4 outSpecSh = 0.0;
+    
+    if( gDenoiserType == DENOISER_RELAX )
+    {
+        #if( NRD_MODE == SH )
+        outDiff = RELAX_FrontEnd_PackSh( result.diffRadiance, result.diffHitDist, result.diffDirection, outDiffSh, USE_SANITIZATION );
+        outSpec = RELAX_FrontEnd_PackSh( result.specRadiance, result.specHitDist, result.specDirection, outSpecSh, USE_SANITIZATION );
+        #else
+        outDiff = RELAX_FrontEnd_PackRadianceAndHitDist( result.diffRadiance, result.diffHitDist, USE_SANITIZATION );
+        outSpec = RELAX_FrontEnd_PackRadianceAndHitDist( result.specRadiance, result.specHitDist, USE_SANITIZATION );
+        #endif
+    }
+    else
+    {
+        #if( NRD_MODE == OCCLUSION )
+        outDiff = result.diffHitDist;
+        outSpec = result.specHitDist;
+        #elif( NRD_MODE == SH )
+        outDiff = REBLUR_FrontEnd_PackSh( result.diffRadiance, result.diffHitDist, result.diffDirection, outDiffSh, USE_SANITIZATION );
+        outSpec = REBLUR_FrontEnd_PackSh( result.specRadiance, result.specHitDist, result.specDirection, outSpecSh, USE_SANITIZATION );
+        #elif( NRD_MODE == DIRECTIONAL_OCCLUSION )
+        outDiff = REBLUR_FrontEnd_PackDirectionalOcclusion( result.diffDirection, result.diffHitDist, USE_SANITIZATION );
+        #else
+        outDiff = REBLUR_FrontEnd_PackRadianceAndNormHitDist( result.diffRadiance, result.diffHitDist, USE_SANITIZATION );
+        outSpec = REBLUR_FrontEnd_PackRadianceAndNormHitDist( result.specRadiance, result.specHitDist, USE_SANITIZATION );
+        #endif
+    }
+    
+    
+    WriteResult( pixelPos, outDiff, outSpec, outDiffSh, outSpecSh );
 }

@@ -467,8 +467,8 @@ Shader "Custom/LitWithRayTracing"
                 #if _NORMALMAP
                 float3 tangentWS = normalize(mul(v.tangent.xyz, (float3x3)WorldToObject()));
 
-                // float2 normalUV = float2(v.uv.x, 1 - v.uv.y); // 修正UV翻转问题
-                float2 normalUV = (v.uv); // 修正UV翻转问题
+                float2 normalUV = float2(v.uv.x, 1 - v.uv.y); // 修正UV翻转问题
+                // float2 normalUV = (v.uv); // 修正UV翻转问题
 
                 float2 packedNormal = _BumpMap.SampleLevel(sampler_BumpMap, _BaseMap_ST.xy * normalUV + _BaseMap_ST.zw,
                                                            mip).xy;

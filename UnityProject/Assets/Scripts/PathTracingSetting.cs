@@ -75,5 +75,7 @@ namespace PathTracing
         public uint bounceNum = 1;
 
         public float mipBias;
+
+        public bool inline;
     }
 }

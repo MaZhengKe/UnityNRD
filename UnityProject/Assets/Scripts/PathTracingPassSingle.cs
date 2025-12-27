@@ -96,31 +96,70 @@ namespace PathTracing
 
             natCmd.SetBufferData(data.ConstantBuffer, new[] { data.GlobalConstants });
 
-            // 不透明
-            natCmd.SetRayTracingShaderPass(data.OpaqueTs, "Test2");
-            natCmd.SetRayTracingConstantBufferParam(data.OpaqueTs, paramsID, data.ConstantBuffer, 0, data.ConstantBuffer.stride);
+            int threadGroupX = Mathf.CeilToInt(data.Width / 16.0f);
+            int threadGroupY = Mathf.CeilToInt(data.Height / 16.0f);
 
-            natCmd.SetRayTracingBufferParam(data.OpaqueTs, g_ScramblingRankingID, data.ScramblingRanking);
-            natCmd.SetRayTracingBufferParam(data.OpaqueTs, g_SobolID, data.Sobol);
+            if (data.Setting.inline)
+            {
+                // test
+                natCmd.SetRayTracingAccelerationStructure(data.opaqueTracingCs, 0, gWorldTlasID, data._dataBuilder.accelerationStructure);
+                natCmd.SetComputeBufferParam(data.opaqueTracingCs, 0, gIn_InstanceDataID, data._dataBuilder._instanceBuffer);
+                natCmd.SetComputeBufferParam(data.opaqueTracingCs, 0, gIn_PrimitiveDataID, data._dataBuilder._primitiveBuffer);
+                natCmd.SetComputeTextureParam(data.opaqueTracingCs, 0, "gIn_Textures", Texture2D.blackTexture);
+                
+                natCmd.SetComputeConstantBufferParam(data.opaqueTracingCs, "GlobalConstants", data.ConstantBuffer, 0, data.ConstantBuffer.stride);
+                
+                natCmd.SetComputeBufferParam(data.opaqueTracingCs, 0,g_ScramblingRankingID, data.ScramblingRanking);
+                natCmd.SetComputeBufferParam(data.opaqueTracingCs,0, g_SobolID, data.Sobol);
 
-            natCmd.SetRayTracingTextureParam(data.OpaqueTs, g_OutputID, data.OutputTexture);
+                natCmd.SetComputeTextureParam(data.opaqueTracingCs,0, g_OutputID, data.OutputTexture);
 
-            natCmd.SetRayTracingTextureParam(data.OpaqueTs, g_MvID, data.Mv);
-            natCmd.SetRayTracingTextureParam(data.OpaqueTs, g_ViewZID, data.ViewZ);
-            natCmd.SetRayTracingTextureParam(data.OpaqueTs, g_Normal_RoughnessID, data.NormalRoughness);
-            natCmd.SetRayTracingTextureParam(data.OpaqueTs, g_BaseColor_MetalnessID, data.BaseColorMetalness);
+                natCmd.SetComputeTextureParam(data.opaqueTracingCs,0, g_MvID, data.Mv);
+                natCmd.SetComputeTextureParam(data.opaqueTracingCs,0, g_ViewZID, data.ViewZ);
+                natCmd.SetComputeTextureParam(data.opaqueTracingCs,0, g_Normal_RoughnessID, data.NormalRoughness);
+                natCmd.SetComputeTextureParam(data.opaqueTracingCs,0, g_BaseColor_MetalnessID, data.BaseColorMetalness);
 
-            natCmd.SetRayTracingTextureParam(data.OpaqueTs, g_DirectLightingID, data.DirectLighting);
-            natCmd.SetRayTracingTextureParam(data.OpaqueTs, g_DirectEmissionID, data.DirectEmission);
+                natCmd.SetComputeTextureParam(data.opaqueTracingCs,0, g_DirectLightingID, data.DirectLighting);
+                natCmd.SetComputeTextureParam(data.opaqueTracingCs,0, g_DirectEmissionID, data.DirectEmission);
 
-            natCmd.SetRayTracingTextureParam(data.OpaqueTs, g_ShadowDataID, data.Penumbra);
-            natCmd.SetRayTracingTextureParam(data.OpaqueTs, g_DiffID, data.Diff);
-            natCmd.SetRayTracingTextureParam(data.OpaqueTs, g_SpecID, data.Spec);
+                natCmd.SetComputeTextureParam(data.opaqueTracingCs,0, g_ShadowDataID, data.Penumbra);
+                natCmd.SetComputeTextureParam(data.opaqueTracingCs,0, g_DiffID, data.Diff);
+                natCmd.SetComputeTextureParam(data.opaqueTracingCs,0, g_SpecID, data.Spec);
 
-            natCmd.SetRayTracingTextureParam(data.OpaqueTs, gIn_PrevComposedDiffID, data.ComposedDiff);
-            natCmd.SetRayTracingTextureParam(data.OpaqueTs, gIn_PrevComposedSpec_PrevViewZID, data.ComposedSpecViewZ);
+                natCmd.SetComputeTextureParam(data.opaqueTracingCs,0, gIn_PrevComposedDiffID, data.ComposedDiff);
+                natCmd.SetComputeTextureParam(data.opaqueTracingCs,0, gIn_PrevComposedSpec_PrevViewZID, data.ComposedSpecViewZ);
+                natCmd.DispatchCompute(data.opaqueTracingCs, 0, threadGroupX, threadGroupY, 1);
 
-            natCmd.DispatchRays(data.OpaqueTs, "MainRayGenShader", data.Width, data.Height, 1);
+            }
+            else
+            {
+                // 不透明
+                natCmd.SetRayTracingShaderPass(data.OpaqueTs, "Test2");
+                natCmd.SetRayTracingConstantBufferParam(data.OpaqueTs, paramsID, data.ConstantBuffer, 0, data.ConstantBuffer.stride);
+
+                natCmd.SetRayTracingBufferParam(data.OpaqueTs, g_ScramblingRankingID, data.ScramblingRanking);
+                natCmd.SetRayTracingBufferParam(data.OpaqueTs, g_SobolID, data.Sobol);
+
+                natCmd.SetRayTracingTextureParam(data.OpaqueTs, g_OutputID, data.OutputTexture);
+
+                natCmd.SetRayTracingTextureParam(data.OpaqueTs, g_MvID, data.Mv);
+                natCmd.SetRayTracingTextureParam(data.OpaqueTs, g_ViewZID, data.ViewZ);
+                natCmd.SetRayTracingTextureParam(data.OpaqueTs, g_Normal_RoughnessID, data.NormalRoughness);
+                natCmd.SetRayTracingTextureParam(data.OpaqueTs, g_BaseColor_MetalnessID, data.BaseColorMetalness);
+
+                natCmd.SetRayTracingTextureParam(data.OpaqueTs, g_DirectLightingID, data.DirectLighting);
+                natCmd.SetRayTracingTextureParam(data.OpaqueTs, g_DirectEmissionID, data.DirectEmission);
+
+                natCmd.SetRayTracingTextureParam(data.OpaqueTs, g_ShadowDataID, data.Penumbra);
+                natCmd.SetRayTracingTextureParam(data.OpaqueTs, g_DiffID, data.Diff);
+                natCmd.SetRayTracingTextureParam(data.OpaqueTs, g_SpecID, data.Spec);
+
+                natCmd.SetRayTracingTextureParam(data.OpaqueTs, gIn_PrevComposedDiffID, data.ComposedDiff);
+                natCmd.SetRayTracingTextureParam(data.OpaqueTs, gIn_PrevComposedSpec_PrevViewZID, data.ComposedSpecViewZ);
+
+                natCmd.DispatchRays(data.OpaqueTs, "MainRayGenShader", data.Width, data.Height, 1);
+            }
+
 
             // NRD降噪
             natCmd.IssuePluginEventAndData(GetRenderEventAndDataFunc(), 1, data.NrdDataPtr);
@@ -138,8 +177,6 @@ namespace PathTracing
             natCmd.SetComputeTextureParam(data.CompositionCs, 0, gOut_ComposedDiffID, data.ComposedDiff);
             natCmd.SetComputeTextureParam(data.CompositionCs, 0, gOut_ComposedSpec_ViewZID, data.ComposedSpecViewZ);
 
-            int threadGroupX = Mathf.CeilToInt(data.Width / 16.0f);
-            int threadGroupY = Mathf.CeilToInt(data.Height / 16.0f);
             natCmd.DispatchCompute(data.CompositionCs, 0, threadGroupX, threadGroupY, 1);
 
             // 透明
@@ -165,17 +202,6 @@ namespace PathTracing
             natCmd.SetComputeTextureParam(data.TaaCs, 0, gOut_DebugID, data.OutputTexture);
             natCmd.DispatchCompute(data.TaaCs, 0, threadGroupX, threadGroupY, 1);
 
-            // test
-            natCmd.SetRayTracingAccelerationStructure(data.opaqueTracingCs, 0, gWorldTlasID, data._dataBuilder.accelerationStructure);
-
-            // Debug.Log(data._dataBuilder.accelerationStructure.GetInstanceCount());
-            natCmd.SetComputeBufferParam(data.opaqueTracingCs, 0, gIn_InstanceDataID, data._dataBuilder._instanceBuffer);
-            natCmd.SetComputeBufferParam(data.opaqueTracingCs, 0, gIn_PrimitiveDataID, data._dataBuilder._primitiveBuffer);
-
-            natCmd.SetComputeConstantBufferParam(data.opaqueTracingCs, "GlobalConstants", data.ConstantBuffer, 0, data.ConstantBuffer.stride);
-            natCmd.SetComputeTextureParam(data.opaqueTracingCs, 0, gOut_DebugID, data.OutputTexture);
-            natCmd.SetComputeTextureParam(data.opaqueTracingCs, 0, "gIn_Textures", Texture2D.blackTexture);
-            natCmd.DispatchCompute(data.opaqueTracingCs, 0, threadGroupX, threadGroupY, 1);
 
             // 显示输出
             natCmd.SetRenderTarget(data.CameraTexture);
@@ -347,16 +373,16 @@ namespace PathTracing
 // #define DENOISER_REBLUR                     0
 // #define DENOISER_RELAX                      1
 // #define DENOISER_REFERENCE                  2
-                gDenoiserType = 1,
+                gDenoiserType = 0,
                 gDisableShadowsAndEnableImportanceSampling = 0,
                 gFrameIndex = (uint)Time.frameCount,
                 gForcedMaterial = 0,
-                gUseNormalMap =  1,
+                gUseNormalMap = 1,
                 gBounceNum = _settings.bounceNum,
                 gResolve = 0,
-                gValidation =  1,
+                gValidation = 1,
                 gSR = 0,
-                gRR =0,
+                gRR = 0,
                 gIsSrgb = 0,
                 gOnScreen = 1,
                 gTracingMode = 0,
