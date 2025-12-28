@@ -62,6 +62,20 @@ typedef HRESULT (STDMETHODCALLTYPE*D3D12_Reset)(
     ID3D12GraphicsCommandList1* This,
     _In_ ID3D12CommandAllocator* pAllocator,
     _In_opt_ ID3D12PipelineState* pInitialState);
+ 
+typedef void (STDMETHODCALLTYPE*D3D12_ExecuteBundle)(
+    ID3D12GraphicsCommandList* This,
+    _In_ ID3D12GraphicsCommandList* pCommandList);
+ 
+typedef HRESULT (STDMETHODCALLTYPE*D3D12_CreateCommandList)(
+    ID3D12Device* This,
+    _In_ UINT nodeMask,
+    D3D12_COMMAND_LIST_TYPE type,
+    _In_ ID3D12CommandAllocator* pCommandAllocator,
+    _In_opt_ ID3D12PipelineState* pInitialState,
+    REFIID riid,
+    _COM_Outptr_ void** ppCommandList);
+
 
 #ifdef D3D12_HOOKS_IMPLEMENTATION
 // 在 D3D12HookManager.cpp 中定义
@@ -102,6 +116,9 @@ RegisterHookFunc(SetGraphicsRootDescriptorTable)
 RegisterHookFunc(SetComputeRootSignature)
 RegisterHookFunc(SetGraphicsRootSignature)
 RegisterHookFunc(Reset)
+
+RegisterHookFunc(ExecuteBundle)
+RegisterHookFunc(CreateCommandList)
 
 #undef FuncFunc
 

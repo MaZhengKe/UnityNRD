@@ -46,6 +46,63 @@ extern "C" static HRESULT STDMETHODCALLTYPE Hooked_CreateGraphicsPipelineState(
     return OrigCreateGraphicsPipelineState(This, pDesc, riid, ppPipelineState);
 }
 
+extern "C" static HRESULT STDMETHODCALLTYPE Hooked_CreateCommandList(
+    ID3D12Device* This,
+    _In_ UINT nodeMask,
+    D3D12_COMMAND_LIST_TYPE type,
+    _In_ ID3D12CommandAllocator* pCommandAllocator,
+    _In_opt_ ID3D12PipelineState* pInitialState,
+    REFIID riid,
+    _COM_Outptr_ void** ppCommandList)
+{
+    // enum D3D12_COMMAND_LIST_TYPE
+    // {
+    //     D3D12_COMMAND_LIST_TYPE_DIRECT	= 0,
+    //     D3D12_COMMAND_LIST_TYPE_BUNDLE	= 1,
+    //     D3D12_COMMAND_LIST_TYPE_COMPUTE	= 2,
+    //     D3D12_COMMAND_LIST_TYPE_COPY	= 3,
+    //     D3D12_COMMAND_LIST_TYPE_VIDEO_DECODE	= 4,
+    //     D3D12_COMMAND_LIST_TYPE_VIDEO_PROCESS	= 5,
+    //     D3D12_COMMAND_LIST_TYPE_VIDEO_ENCODE	= 6,
+    //     D3D12_COMMAND_LIST_TYPE_NONE	= -1
+    // } 	D3D12_COMMAND_LIST_TYPE;
+
+    auto commandListTypeStr = std::string("Unknown");
+    switch (type)
+    {
+    case D3D12_COMMAND_LIST_TYPE_DIRECT:
+        commandListTypeStr = "Direct";
+        break;      
+    case D3D12_COMMAND_LIST_TYPE_BUNDLE:
+        commandListTypeStr = "Bundle";
+        break;
+    case D3D12_COMMAND_LIST_TYPE_COMPUTE:
+        commandListTypeStr = "Compute";
+        break;
+    case D3D12_COMMAND_LIST_TYPE_COPY:
+        commandListTypeStr = "Copy";
+        break;
+    case D3D12_COMMAND_LIST_TYPE_VIDEO_DECODE:
+        commandListTypeStr = "Video Decode";
+        break;
+    case D3D12_COMMAND_LIST_TYPE_VIDEO_PROCESS:
+        commandListTypeStr = "Video Process";
+        break;
+    case D3D12_COMMAND_LIST_TYPE_VIDEO_ENCODE:
+        commandListTypeStr = "Video Encode";
+        break;
+    default:
+        break;
+    }
+    
+    UnityLog::Debug("[CreateCommandList] Called with type: %s\n", commandListTypeStr.c_str());
+    auto res = OrigCreateCommandList(This, nodeMask, type, pCommandAllocator, pInitialState, riid, ppCommandList);
+    
+    // HookCommandList ((ID3D12GraphicsCommandList*)(*ppCommandList));
+    
+    return res;
+}
+
 extern "C" static HRESULT STDMETHODCALLTYPE Hooked_CreateComputePipelineState(
     ID3D12Device* This,
     _In_ const D3D12_COMPUTE_PIPELINE_STATE_DESC* pDesc,
@@ -128,6 +185,15 @@ extern "C" static void STDMETHODCALLTYPE Hooked_SetGraphicsRootDescriptorTable(I
     OrigSetGraphicsRootDescriptorTable(list, RootParameterIndex, BaseDescriptor);
 }
 
+// ExecuteBundle
+extern "C" static void STDMETHODCALLTYPE Hooked_ExecuteBundle(
+    ID3D12GraphicsCommandList* This,
+    _In_ ID3D12GraphicsCommandList* pCommandList)
+{
+    UnityLog::Debug("[ExecuteBundle] Called with command list: %p\n", pCommandList);
+    OrigExecuteBundle(This, pCommandList);
+}
+
 void InitHook(IUnityLog* logger)
 {
     // 1. 初始化偏移量 (调用 C 代码)
@@ -147,6 +213,7 @@ void HookDevice(ID3D12Device* device)
     HookDeviceFunc(device, CreateRootSignature);
     HookDeviceFunc(device, CreateComputePipelineState);
     HookDeviceFunc(device, CreateGraphicsPipelineState);
+    HookDeviceFunc(device, CreateCommandList);
 
 
     deviceHooked = true;
@@ -154,8 +221,8 @@ void HookDevice(ID3D12Device* device)
 
 void HookCommandList(ID3D12GraphicsCommandList* cmdList)
 {
-    static bool cmdListHooked = false;
-    if (cmdListHooked) return;
+    // static bool cmdListHooked = false;
+    // if (cmdListHooked) return;
 
     // 2. 执行 Hook
     HookCmdListFunc(cmdList, SetDescriptorHeaps);
@@ -164,9 +231,11 @@ void HookCommandList(ID3D12GraphicsCommandList* cmdList)
     HookCmdListFunc(cmdList, SetComputeRootSignature);
     HookCmdListFunc(cmdList, SetGraphicsRootSignature);
     HookCmdListFunc(cmdList, Reset);
+    
+    HookCmdListFunc(cmdList, ExecuteBundle);
 
     UnityLog::Debug("HookCommandList called.\n");
-    cmdListHooked = true;
+    // cmdListHooked = true;
 }
 
 

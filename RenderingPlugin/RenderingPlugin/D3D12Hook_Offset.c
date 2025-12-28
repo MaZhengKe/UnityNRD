@@ -18,6 +18,7 @@ void __D3D12HOOKS_InitializeD3D12Offsets() {
     SetDevOff(CreateRootSignature);
     SetDevOff(CreateComputePipelineState);
     SetDevOff(CreateGraphicsPipelineState);
+    SetDevOff(CreateCommandList);
 
     SetListOff(SetPipelineState);
     SetListOff(SetDescriptorHeaps);
@@ -26,6 +27,8 @@ void __D3D12HOOKS_InitializeD3D12Offsets() {
     SetListOff(SetComputeRootSignature);
     SetListOff(SetGraphicsRootSignature);
     SetListOff(Reset);
+    
+    SetListOff(ExecuteBundle);
 
 }
 
