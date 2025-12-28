@@ -1,4 +1,7 @@
 ﻿#include <Windows.h>
+
+#include "include/MinHook.h"
+
 #define D3D12_HOOKS_IMPLEMENTATION // 关键：让宏在此定义变量
 #include <cstdint>
 #include <d3dx12_root_signature.h>
@@ -8,6 +11,17 @@
 
 #include "D3D12Hooks.h"
 #include "UnityLog.h"
+ 
+
+
+
+// 辅助工具：从虚表获取地址
+template <typename T>
+inline void* GetVTableAddress(T* pInterface, int index)
+{
+    return (*(void***)pInterface)[index];
+}
+
 
 // --- 工具函数 ---
 static bool Unprotect(void* addr)
@@ -72,7 +86,7 @@ extern "C" static HRESULT STDMETHODCALLTYPE Hooked_CreateCommandList(
     {
     case D3D12_COMMAND_LIST_TYPE_DIRECT:
         commandListTypeStr = "Direct";
-        break;      
+        break;
     case D3D12_COMMAND_LIST_TYPE_BUNDLE:
         commandListTypeStr = "Bundle";
         break;
@@ -94,12 +108,12 @@ extern "C" static HRESULT STDMETHODCALLTYPE Hooked_CreateCommandList(
     default:
         break;
     }
-    
+
     UnityLog::Debug("[CreateCommandList] Called with type: %s\n", commandListTypeStr.c_str());
     auto res = OrigCreateCommandList(This, nodeMask, type, pCommandAllocator, pInitialState, riid, ppCommandList);
-    
+
     // HookCommandList ((ID3D12GraphicsCommandList*)(*ppCommandList));
-    
+
     return res;
 }
 
@@ -168,7 +182,7 @@ extern "C" static void STDMETHODCALLTYPE Hooked_SetDescriptorHeaps(ID3D12Graphic
     OrigSetDescriptorHeaps(This, NumDescriptorHeaps, ppDescriptorHeaps);
 }
 
- 
+
 extern "C" static void STDMETHODCALLTYPE Hooked_SetComputeRootDescriptorTable(ID3D12CommandList* list,
                                                                               _In_ UINT RootParameterIndex,
                                                                               _In_ D3D12_GPU_DESCRIPTOR_HANDLE BaseDescriptor)
@@ -198,6 +212,9 @@ void InitHook(IUnityLog* logger)
 {
     // 1. 初始化偏移量 (调用 C 代码)
     __D3D12HOOKS_InitializeD3D12Offsets();
+UnityLog::Debug("__D3D12_VTOFFS_CreateDescriptorHeap  = %u\n", __D3D12_VTOFFS_CreateDescriptorHeap);
+    
+    MH_Initialize();
 }
 
 ID3D12Device* s_device;
@@ -208,13 +225,26 @@ void HookDevice(ID3D12Device* device)
     if (deviceHooked) return;
 
     s_device = device;
-    // 2. 执行 Hook
-    HookDeviceFunc(device, CreateDescriptorHeap);
-    HookDeviceFunc(device, CreateRootSignature);
-    HookDeviceFunc(device, CreateComputePipelineState);
-    HookDeviceFunc(device, CreateGraphicsPipelineState);
-    HookDeviceFunc(device, CreateCommandList);
+    // // 2. 执行 Hook
+    // HookDeviceFunc(device, CreateDescriptorHeap);
+    // HookDeviceFunc(device, CreateRootSignature);
+    // HookDeviceFunc(device, CreateComputePipelineState);
+    // HookDeviceFunc(device, CreateGraphicsPipelineState);
+    // HookDeviceFunc(device, CreateCommandList);
 
+    void* pCreateDescriptorHeapAddr = GetVTableAddress(device, __D3D12_VTOFFS_CreateDescriptorHeap/8); 
+    
+    if (MH_CreateHook(pCreateDescriptorHeapAddr,
+                      (LPVOID)Hooked_CreateDescriptorHeap,
+                      (LPVOID*)&OrigCreateDescriptorHeap) == MH_OK)
+    {
+        UnityLog::Debug( "Set up MH_CreateHook for CreateDescriptorHeap succeeded.\n");
+        MH_EnableHook(pCreateDescriptorHeapAddr);
+    }else{
+        UnityLog::Debug( "Set up MH_CreateHook for CreateDescriptorHeap failed.\n");
+    }
+    
+    
 
     deviceHooked = true;
 }
@@ -225,14 +255,29 @@ void HookCommandList(ID3D12GraphicsCommandList* cmdList)
     // if (cmdListHooked) return;
 
     // 2. 执行 Hook
-    HookCmdListFunc(cmdList, SetDescriptorHeaps);
-    HookCmdListFunc(cmdList, SetComputeRootDescriptorTable);
-    HookCmdListFunc(cmdList, SetGraphicsRootDescriptorTable);
-    HookCmdListFunc(cmdList, SetComputeRootSignature);
-    HookCmdListFunc(cmdList, SetGraphicsRootSignature);
-    HookCmdListFunc(cmdList, Reset);
+    // HookCmdListFunc(cmdList, SetDescriptorHeaps);
+    // HookCmdListFunc(cmdList, SetComputeRootDescriptorTable);
+    // HookCmdListFunc(cmdList, SetGraphicsRootDescriptorTable);
+    // HookCmdListFunc(cmdList, SetComputeRootSignature);
+    // HookCmdListFunc(cmdList, SetGraphicsRootSignature);
+    // HookCmdListFunc(cmdList, Reset);
+    //
+    // HookCmdListFunc(cmdList, ExecuteBundle);
     
-    HookCmdListFunc(cmdList, ExecuteBundle);
+    
+    void* pSetGraphicsRootDescriptorTableAddr = GetVTableAddress(cmdList, __D3D12_VTOFFS_SetGraphicsRootDescriptorTable/8); 
+    
+    if (MH_CreateHook(pSetGraphicsRootDescriptorTableAddr,
+                      (LPVOID)Hooked_SetGraphicsRootDescriptorTable,
+                      (LPVOID*)&OrigSetGraphicsRootDescriptorTable) == MH_OK)
+    {
+        UnityLog::Debug( "Set up MH_CreateHook for SetGraphicsRootDescriptorTable succeeded.\n");
+        MH_EnableHook(pSetGraphicsRootDescriptorTableAddr);
+    }else{
+        UnityLog::Debug( "Set up MH_CreateHook for SetGraphicsRootDescriptorTable failed.\n");
+    }
+    
+    
 
     UnityLog::Debug("HookCommandList called.\n");
     // cmdListHooked = true;
