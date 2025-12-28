@@ -112,7 +112,7 @@ namespace PathTracing
                 natCmd.SetComputeBufferParam(data.opaqueTracingCs, 0,g_ScramblingRankingID, data.ScramblingRanking);
                 natCmd.SetComputeBufferParam(data.opaqueTracingCs,0, g_SobolID, data.Sobol);
 
-                natCmd.SetComputeTextureParam(data.opaqueTracingCs,0, g_OutputID, data.OutputTexture);
+                // natCmd.SetComputeTextureParam(data.opaqueTracingCs,0, g_OutputID, data.OutputTexture);
 
                 natCmd.SetComputeTextureParam(data.opaqueTracingCs,0, g_MvID, data.Mv);
                 natCmd.SetComputeTextureParam(data.opaqueTracingCs,0, g_ViewZID, data.ViewZ);

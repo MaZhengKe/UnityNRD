@@ -19,10 +19,6 @@ StructuredBuffer<uint4> gIn_Sobol;
 Texture2D<float3> gIn_PrevComposedDiff;
 Texture2D<float4> gIn_PrevComposedSpec_PrevViewZ;
 
-
-// Output
-RWTexture2D<float3> g_Output;
-
 // 运动矢量（Motion Vector），用于描述像素在当前帧与上一帧之间的运动，以及视深（ViewZ）和TAA遮罩信息。
 RWTexture2D<float4> gOut_Mv;
 // 视空间深度（ViewZ），即像素在视空间中的Z值。
@@ -569,41 +565,41 @@ void CSMain(int2 pixelPos : SV_DispatchThreadID)
     float viewZAndTaaMask0 = abs( viewZ0 ) * FP16_VIEWZ_SCALE * ( isTaa5x5 ? -1.0 : 1.0 );
 
     
-    [loop]
-    while( bounceNum && !geometryProps0.IsMiss( ) && IsDelta( materialProps0 ) && gPSR )
-    {
-        { // Origin point
-            // Accumulate curvature
-            accumulatedCurvature += materialProps0.curvature; // yes, before hit
-
-            // Accumulate mirror matrix
-            mirrorMatrix = mul( Geometry::GetMirrorMatrix( materialProps0.N ), mirrorMatrix );
-
-            // Choose a ray
-            float3 ray = reflect( -geometryProps0.V, materialProps0.N );
-
-            // Update throughput
-            float3 albedo, Rf0;
-            BRDF::ConvertBaseColorMetalnessToAlbedoRf0( materialProps0.baseColor, materialProps0.metalness, albedo, Rf0 );
-
-            float NoV = abs( dot( materialProps0.N, geometryProps0.V ) );
-            float3 Fenv = BRDF::EnvironmentTerm_Rtg( Rf0, NoV, materialProps0.roughness );
-
-            psrThroughput *= Fenv;
-
-            // Trace to the next hit
-            float2 mipAndCone = GetConeAngleFromRoughness( geometryProps0.mip, materialProps0.roughness );
-            geometryProps0 = CastRay( geometryProps0.GetXoffset( geometryProps0.N ), ray, 0.0, INF, mipAndCone, gWorldTlas, FLAG_NON_TRANSPARENT, PT_RAY_FLAGS );
-            materialProps0 = GetMaterialProps( geometryProps0 );
-        }
-
-        { // Hit point
-            // Accumulate hit distance representing virtual point position ( see "README/NOISY INPUTS" )
-            accumulatedHitDist += ApplyThinLensEquation( geometryProps0.hitT, accumulatedCurvature ) ; // TODO: take updated from NRD
-        }
-
-        bounceNum--;
-    }
+    // [loop]
+    // while( bounceNum && !geometryProps0.IsMiss( ) && IsDelta( materialProps0 ) && gPSR )
+    // {
+    //     { // Origin point
+    //         // Accumulate curvature
+    //         accumulatedCurvature += materialProps0.curvature; // yes, before hit
+    //
+    //         // Accumulate mirror matrix
+    //         mirrorMatrix = mul( Geometry::GetMirrorMatrix( materialProps0.N ), mirrorMatrix );
+    //
+    //         // Choose a ray
+    //         float3 ray = reflect( -geometryProps0.V, materialProps0.N );
+    //
+    //         // Update throughput
+    //         float3 albedo, Rf0;
+    //         BRDF::ConvertBaseColorMetalnessToAlbedoRf0( materialProps0.baseColor, materialProps0.metalness, albedo, Rf0 );
+    //
+    //         float NoV = abs( dot( materialProps0.N, geometryProps0.V ) );
+    //         float3 Fenv = BRDF::EnvironmentTerm_Rtg( Rf0, NoV, materialProps0.roughness );
+    //
+    //         psrThroughput *= Fenv;
+    //
+    //         // Trace to the next hit
+    //         float2 mipAndCone = GetConeAngleFromRoughness( geometryProps0.mip, materialProps0.roughness );
+    //         geometryProps0 = CastRay( geometryProps0.GetXoffset( geometryProps0.N ), ray, 0.0, INF, mipAndCone, gWorldTlas, FLAG_NON_TRANSPARENT, PT_RAY_FLAGS );
+    //         materialProps0 = GetMaterialProps( geometryProps0 );
+    //     }
+    //
+    //     { // Hit point
+    //         // Accumulate hit distance representing virtual point position ( see "README/NOISY INPUTS" )
+    //         accumulatedHitDist += ApplyThinLensEquation( geometryProps0.hitT, accumulatedCurvature ) ; // TODO: take updated from NRD
+    //     }
+    //
+    //     bounceNum--;
+    // }
 
     
     //================================================================================================================================================================================
@@ -648,7 +644,9 @@ void CSMain(int2 pixelPos : SV_DispatchThreadID)
     gOut_Normal_Roughness[ pixelPos ] = NRD_FrontEnd_PackNormalAndRoughness( N, materialProps0.roughness, materialID );
 
     // Base color and metalness
-    gOut_BaseColor_Metalness[ pixelPos ] = float4( Color::ToSrgb( materialProps0.baseColor ), materialProps0.metalness );
+    // gOut_BaseColor_Metalness[ pixelPos ] = float4( Color::ToSrgb( materialProps0.baseColor ), materialProps0.metalness );
+    // gOut_BaseColor_Metalness[ pixelPos ] = float4(  geometryProps0.instanceIndex / 1000.0 ,( geometryProps0.instanceIndex / 1000.0 ),geometryProps0.instanceIndex / 1000.0 , materialProps0.metalness );
+    gOut_BaseColor_Metalness[ pixelPos ] = float4(  materialProps0.baseColor , materialProps0.metalness );
     
     // Direct lighting
     float3 Xshadow;

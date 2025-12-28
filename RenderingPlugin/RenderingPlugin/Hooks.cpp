@@ -152,14 +152,14 @@ extern "C" static HRESULT STDMETHODCALLTYPE Hooked_CreateGraphicsPipelineState(
     auto hasHookedRootsig = false;
 
 
-    // UnityLog::Debug("CreateGraphicsPipelineState creating with root sig %p\n", pDesc->pRootSignature);
+    UnityLog::Debug("[CreateGraphicsPipelineState] creating with root sig %p\n", pDesc->pRootSignature);
 
     if (pDesc->pRootSignature != nullptr)
     {
         hasHookedRootsig = TryGetBindlessData(pDesc->pRootSignature, data);
         if (hasHookedRootsig)
         {
-            UnityLog::Debug("CreateGraphicsPipelineState found using the hooked root signature\n");
+            UnityLog::Debug("    CreateGraphicsPipelineState found using the hooked root signature\n");
         }
     }
 
@@ -182,13 +182,14 @@ extern "C" static HRESULT STDMETHODCALLTYPE Hooked_CreateComputePipelineState(
     HookedRootSignature data;
     auto hasHookedRootsig = false;
 
+    UnityLog::Debug("[CreateComputePipelineState] creating with root sig %p\n", pDesc->pRootSignature);
 
     if (pDesc->pRootSignature != nullptr)
     {
         hasHookedRootsig = TryGetBindlessData(pDesc->pRootSignature, data);
         if (hasHookedRootsig)
         {
-            UnityLog::Debug("CreateComputePipelineState found using the hooked root signature\n");
+            UnityLog::Debug("    CreateComputePipelineState found using the hooked root signature\n");
         }
     }
 
@@ -207,7 +208,7 @@ extern "C" static HRESULT STDMETHODCALLTYPE Hooked_Reset(
     _In_opt_ ID3D12PipelineState* pInitialState
 )
 {
-    // LOG("[HOOK Native] Hooked_Reset called.");
+    UnityLog::Debug("[Reset] Called\n");
 
     SetCommandListState(This, {});
     return OrigReset(This, pAllocator, pInitialState);
@@ -277,8 +278,7 @@ extern "C" HRESULT STDMETHODCALLTYPE Hooked_CreateRootSignature(
     REFIID riid,
     _COM_Outptr_ void** ppvRootSignature)
 {
-    
-    
+    UnityLog::Debug("[CreateRootSignature] Called with blob size: %zu bytes\n", blobLengthInBytes);
     
     ID3D12RootSignatureDeserializer* deserializer;
     auto hr = D3D12CreateRootSignatureDeserializer(pBlobWithRootSignature, blobLengthInBytes, IID_PPV_ARGS(&deserializer));
@@ -286,7 +286,7 @@ extern "C" HRESULT STDMETHODCALLTYPE Hooked_CreateRootSignature(
 
     if (FAILED(hr))
     {
-        UnityLog::Debug(" Failed to create root signature deserializer.");
+        UnityLog::Debug("    Failed to create root signature deserializer.");
         return OrigCreateRootSignature(This, nodeMask, pBlobWithRootSignature, blobLengthInBytes, riid, ppvRootSignature);
     }
 
@@ -307,12 +307,12 @@ extern "C" HRESULT STDMETHODCALLTYPE Hooked_CreateRootSignature(
         auto& p = writableParams[i];
         if (p.ParameterType != D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE) continue;
 
-        UnityLog::Debug("Param: %d, type: %d, shader vis: %d\n", i, p.ParameterType, p.ShaderVisibility);
+        UnityLog::Debug("    Param: %d, type: %d, shader vis: %d\n", i, p.ParameterType, p.ShaderVisibility);
 
         if (p.ShaderVisibility == D3D12_SHADER_VISIBILITY_ALL || p.ShaderVisibility == D3D12_SHADER_VISIBILITY_PIXEL)
         {
             auto& v = p.DescriptorTable;
-            UnityLog::Debug("Descriptor Table: %d, num ranges %d\n", i, v.NumDescriptorRanges);
+            UnityLog::Debug("    Descriptor Table: %d, num ranges %d\n", i, v.NumDescriptorRanges);
             newRanges.clear();
 
 
@@ -322,7 +322,7 @@ extern "C" HRESULT STDMETHODCALLTYPE Hooked_CreateRootSignature(
                 auto& dr = writableDescriptors[x];
 
 
-                UnityLog::Debug("DescriptorTable: %d, type: %d, base register: %d, numDescriptors: %d, offset: %d\n",
+                UnityLog::Debug("    DescriptorTable: %d, type: %d, base register: %d, numDescriptors: %d, offset: %d\n",
                                 x, dr.RangeType, dr.BaseShaderRegister, dr.NumDescriptors, dr.OffsetInDescriptorsFromTableStart);
 
                 // 只处理寄存器空间 0 (space0) 且类型为 SRV (纹理) 的范围
@@ -339,8 +339,8 @@ extern "C" HRESULT STDMETHODCALLTYPE Hooked_CreateRootSignature(
                     {
                         ignore = true;
 
-                        UnityLog::LogWarning("Some shader uses more than %d texture registers, this shader is not eligible for bindless.", (srvBindlessDescriptorStart + 1));
-                        UnityLog::LogWarning("DescriptorTable: %d, type: %d, base register: %d, numDescriptors: %d, offset: %d\n", x, dr.RangeType, dr.BaseShaderRegister, dr.NumDescriptors, dr.OffsetInDescriptorsFromTableStart);
+                        UnityLog::LogWarning("    Some shader uses more than %d texture registers, this shader is not eligible for bindless.", (srvBindlessDescriptorStart + 1));
+                        UnityLog::LogWarning("    DescriptorTable: %d, type: %d, base register: %d, numDescriptors: %d, offset: %d\n", x, dr.RangeType, dr.BaseShaderRegister, dr.NumDescriptors, dr.OffsetInDescriptorsFromTableStart);
                     }
 
                     newRanges.push_back(dr);
@@ -361,11 +361,11 @@ extern "C" HRESULT STDMETHODCALLTYPE Hooked_CreateRootSignature(
                 if (dr.NumDescriptors == 1)
                 {
                     // Just remove it.
-                    UnityLog::Log("Removing descriptor range\n");
+                    UnityLog::Log("    Removing descriptor range\n");
                     continue;
                 }
 
-                UnityLog::Log("Modified descriptor range.\n");
+                UnityLog::Log("    Modified descriptor range.\n");
                 dr.NumDescriptors--;
                 newRanges.push_back(dr);
             }
@@ -417,7 +417,7 @@ extern "C" HRESULT STDMETHODCALLTYPE Hooked_CreateRootSignature(
     hookedValue.numMaxBindings = numAdditionalSrv;
 
 
-    UnityLog::Debug("Adding new descriptor table, new num: %d\n", rootSig.NumParameters);
+    UnityLog::Debug("    Adding new descriptor table, new num: %d\n", rootSig.NumParameters);
 
 
     ID3DBlob* serializedBlob = nullptr;
@@ -427,7 +427,7 @@ extern "C" HRESULT STDMETHODCALLTYPE Hooked_CreateRootSignature(
     auto serializeResult = D3D12SerializeRootSignature(&rootSig, D3D_ROOT_SIGNATURE_VERSION_1_0, &serializedBlob, &errorBlob);
     if (FAILED(serializeResult))
     {
-        UnityLog::LogError("Failed to serialize new root signature %p.\n", (void*)(size_t)serializeResult);
+        UnityLog::LogError("    Failed to serialize new root signature %p.\n", (void*)(size_t)serializeResult);
 
         // Null terminate if needed.
         if (errorBlob != nullptr && errorBlob->GetBufferSize() > 0)
@@ -437,13 +437,13 @@ extern "C" HRESULT STDMETHODCALLTYPE Hooked_CreateRootSignature(
             if (ptr[sz] != 0)
                 ptr[sz] = 0;
 
-            UnityLog::LogError("ErrorBlob: %s\n", errorBlob->GetBufferPointer());
+            UnityLog::LogError("    ErrorBlob: %s\n", errorBlob->GetBufferPointer());
             errorBlob->Release();
         }
 
         // Return unmodified.
         auto ret = OrigCreateRootSignature(This, nodeMask, pBlobWithRootSignature, blobLengthInBytes, riid, ppvRootSignature);
-        UnityLog::Debug("Created root desc (FAILED(serializeResult)) [f] %p\n", *ppvRootSignature);
+        UnityLog::Debug("    Created root desc (FAILED(serializeResult)) [f] %p\n", *ppvRootSignature);
         return ret;
     }
     auto ret = OrigCreateRootSignature(This, nodeMask, serializedBlob->GetBufferPointer(), serializedBlob->GetBufferSize(), riid, ppvRootSignature);
@@ -454,12 +454,12 @@ extern "C" HRESULT STDMETHODCALLTYPE Hooked_CreateRootSignature(
     {
         ID3D12RootSignature* sig = (ID3D12RootSignature*)*ppvRootSignature;
         hookedDescriptors[(size_t)sig] = hookedValue;
-        UnityLog::Debug("Created root desc (hooked) [s] %p\n", *ppvRootSignature);
+        UnityLog::Debug("    Created root desc hooked success [s] %p\n", *ppvRootSignature);
 
         // Set via private data
         if (FAILED(sig->SetPrivateData(MeetemBindlessData, sizeof(HookedRootSignature), &hookedValue)))
         {
-            UnityLog::LogError("Can't set private data\n");
+            UnityLog::LogError("    Can't set private data\n");
             abort();
         }
     }
