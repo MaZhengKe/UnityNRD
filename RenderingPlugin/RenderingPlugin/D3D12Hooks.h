@@ -97,7 +97,18 @@ extern "C" unsigned __D3D12_VTOFFS_##Name;
 
 // 统一映射宏
 #define HookDeviceFunc(device, Name) Orig##Name = (D3D12_##Name)ApplyHook(device, __D3D12_VTOFFS_##Name, (void*)Hooked_##Name)
-#define HookCmdListFunc(list, Name)  Orig##Name = (D3D12_##Name)ApplyHook(list, __D3D12_VTOFFS_##Name, (void*)Hooked_##Name)
+
+
+#define HookCmdListFunc(list, Name)       void* p_##Name = GetVTableAddress(list, __D3D12_VTOFFS_##Name/8); \
+if (MH_CreateHook(p_##Name,\
+(LPVOID)Hooked_##Name,\
+(LPVOID*)&Orig##Name) == MH_OK)\
+{\
+    UnityLog::Debug( "Set up MH_CreateHook for _##Name succeeded.\n");\
+    MH_EnableHook(p_##Name);\
+}else{\
+    UnityLog::Debug( "Set up MH_CreateHook for _##Name failed.\n");\
+}\
 
  
 
