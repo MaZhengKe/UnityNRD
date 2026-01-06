@@ -5,6 +5,8 @@
 #pragma use_dxc
 #pragma target 6.0
 #pragma enable_d3d11_debug_symbols
+#pragma require Int64BufferAtomics
+#pragma require Native16Bit
 
 #include "Include/Shared.hlsl"
 #include "Include/RaytracingShared.hlsl"

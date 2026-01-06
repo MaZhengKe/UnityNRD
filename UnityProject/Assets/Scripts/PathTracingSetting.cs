@@ -133,7 +133,8 @@ namespace PathTracing
         public float resolutionScale = 0.5f;
 
         public UpscalerMode upscalerMode;
- 
+        public bool inline;
+
         // public bool dlss;
     }
 }

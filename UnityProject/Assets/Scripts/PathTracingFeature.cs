@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using DefaultNamespace;
 using Nrd;
 using Unity.Mathematics;
 using UnityEngine;
@@ -178,6 +179,7 @@ namespace PathTracing
         public ComputeShader compositionComputeShader;
         public ComputeShader taaComputeShader;
         public ComputeShader dlssBeforeComputeShader;
+        public ComputeShader opaqueTracingCs;
 
         public ComputeShader sharcResolveCs;
         public RayTracingShader sharcUpdateTs;
@@ -202,6 +204,19 @@ namespace PathTracing
 
         private Dictionary<int, NRDDenoiser> _nrdDenoisers = new();
         private Dictionary<int, DLRRDenoiser> _dlrrDenoisers = new();
+        
+        
+        private PathTracingDataBuilder _dataBuilder = new PathTracingDataBuilder();
+
+        public Texture2DArray Array;
+        
+        [ContextMenu("ReBuild AccelerationStructure")]
+        public void ReBuild()
+        {
+            _dataBuilder.Build();
+            _dataBuilder.textureArray = Array;
+        }
+        
 
         public override void Create()
         {
@@ -252,6 +267,7 @@ namespace PathTracing
             {
                 renderPassEvent = RenderPassEvent.BeforeRenderingPostProcessing,
                 OpaqueTs = opaqueTracingShader,
+                opaqueTracingCs = opaqueTracingCs,
                 TransparentTs = transparentTracingShader,
                 CompositionCs = compositionComputeShader,
                 TaaCs = taaComputeShader,
@@ -264,7 +280,8 @@ namespace PathTracing
                 SharcUpdateTs = sharcUpdateTs,
                 HashEntriesBuffer = _hashEntriesBuffer,
                 AccumulationBuffer = _accumulationBuffer,
-                ResolvedBuffer = _resolvedBuffer
+                ResolvedBuffer = _resolvedBuffer,
+                _dataBuilder = _dataBuilder
             };
         }
 
@@ -325,8 +342,9 @@ namespace PathTracing
                )
                 return;
 
-
-            renderer.EnqueuePass(_pathTracingPass);
+            if(!_dataBuilder.IsEmpty())
+                renderer.EnqueuePass(_pathTracingPass);
+ 
         }
 
         protected override void Dispose(bool disposing)

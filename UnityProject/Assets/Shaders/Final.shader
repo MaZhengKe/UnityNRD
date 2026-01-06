@@ -591,6 +591,8 @@
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma target 4.5
+#pragma require Int64BufferAtomics
+#pragma require Native16Bit
 
             #include "Include/Shared.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
@@ -655,6 +657,8 @@
             #pragma target 4.5
             #pragma enable_d3d11_debug_symbols
             #pragma use_dxc
+#pragma require Int64BufferAtomics
+#pragma require Native16Bit
 
 
             #include "Include/Shared.hlsl"

@@ -2,6 +2,9 @@
 #pragma kernel CSMain
 #pragma use_dxc
 #pragma enable_d3d11_debug_symbols
+#pragma require Int64BufferAtomics
+#pragma require Native16Bit
+
 // #include "ml.hlsli"
 #include "Include/Shared.hlsl"
 #include "NRDInclude/NRD.hlsli"
