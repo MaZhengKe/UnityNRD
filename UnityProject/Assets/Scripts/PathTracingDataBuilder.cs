@@ -27,7 +27,7 @@ namespace DefaultNamespace
         public half2 t2;
         public float bitangentSign;
     }
- 
+
     [StructLayout(LayoutKind.Sequential)]
     public struct InstanceData
     {
@@ -45,9 +45,9 @@ namespace DefaultNamespace
         public float scale;
 
         public uint morphPrimitiveOffset;
-        public uint unused1;
-        public uint unused2;
-        public uint unused3;
+        public uint normalOffset;
+        public uint maskOffset;
+        public uint emissionOffset;
     }
 
     public class PathTracingDataBuilder
@@ -75,39 +75,54 @@ namespace DefaultNamespace
 
         // 存储最终传给 BindlessPlugin 的总列表
         public List<Texture2D> globalTexturePool = new List<Texture2D>();
+        
+        private Dictionary<int, uint> singleTextureCache = new Dictionary<int, uint>();
 
-
-        // 缓存已添加的纹理组，避免重复上传相同的材质纹理组合
-        private Dictionary<string, uint> textureGroupCache = new Dictionary<string, uint>();
-
-        private uint GetTextureGroupIndex(Material mat)
+        private uint GetSingleTextureIndex(Texture2D tex, Texture2D defaultTex)
         {
-            if (mat == null) return 0;
+            Texture2D target = tex != null ? tex : defaultTex;
+            int id = target.GetInstanceID();
 
-            // 获取四张纹理，如果为空则使用默认值
-            Texture2D texBase = (Texture2D)mat.GetTexture("_BaseMap") ?? defaultWhite;
-            Texture2D texMask = (Texture2D)mat.GetTexture("_MetallicGlossMap") ?? defaultMask;
-            Texture2D texNormal = (Texture2D)mat.GetTexture("_BumpMap") ?? defaultNormal;
-            Texture2D texEmission = (Texture2D)mat.GetTexture("_EmissionMap") ?? defaultBlack;
+            if (singleTextureCache.TryGetValue(id, out uint index))
+                return index;
 
-            // 生成唯一 Key 判断这四张图是否已经成组添加过
-            string key = $"{texBase.GetInstanceID()}_{texMask.GetInstanceID()}_{texNormal.GetInstanceID()}_{texEmission.GetInstanceID()}";
-
-            if (textureGroupCache.TryGetValue(key, out uint startIndex))
-            {
-                return startIndex;
-            }
-
-            // 如果没添加过，则按顺序连续存入 4 张
-            startIndex = (uint)globalTexturePool.Count;
-            globalTexturePool.Add(texBase); // index + 0
-            globalTexturePool.Add(texMask); // index + 1
-            globalTexturePool.Add(texNormal); // index + 2
-            globalTexturePool.Add(texEmission); // index + 3
-
-            textureGroupCache.Add(key, startIndex);
-            return startIndex;
+            index = (uint)globalTexturePool.Count;
+            globalTexturePool.Add(target);
+            singleTextureCache.Add(id, index);
+            return index;
         }
+
+        // // 缓存已添加的纹理组，避免重复上传相同的材质纹理组合
+        // private Dictionary<string, uint> textureGroupCache = new Dictionary<string, uint>();
+        //
+        // private uint GetTextureGroupIndex(Material mat)
+        // {
+        //     if (mat == null) return 0;
+        //
+        //     // 获取四张纹理，如果为空则使用默认值
+        //     Texture2D texBase = (Texture2D)mat.GetTexture("_BaseMap") ?? defaultWhite;
+        //     Texture2D texMask = (Texture2D)mat.GetTexture("_MetallicGlossMap") ?? defaultMask;
+        //     Texture2D texNormal = (Texture2D)mat.GetTexture("_BumpMap") ?? defaultNormal;
+        //     Texture2D texEmission = (Texture2D)mat.GetTexture("_EmissionMap") ?? defaultBlack;
+        //
+        //     // 生成唯一 Key 判断这四张图是否已经成组添加过
+        //     string key = $"{texBase.GetInstanceID()}_{texMask.GetInstanceID()}_{texNormal.GetInstanceID()}_{texEmission.GetInstanceID()}";
+        //
+        //     if (textureGroupCache.TryGetValue(key, out uint startIndex))
+        //     {
+        //         return startIndex;
+        //     }
+        //
+        //     // 如果没添加过，则按顺序连续存入 4 张
+        //     startIndex = (uint)globalTexturePool.Count;
+        //     globalTexturePool.Add(texBase); // index + 0
+        //     globalTexturePool.Add(texMask); // index + 1
+        //     globalTexturePool.Add(texNormal); // index + 2
+        //     globalTexturePool.Add(texEmission); // index + 3
+        //
+        //     textureGroupCache.Add(key, startIndex);
+        //     return startIndex;
+        // }
 
         public RayTracingAccelerationStructure accelerationStructure;
 
@@ -139,7 +154,7 @@ namespace DefaultNamespace
             primitiveDataList.Clear();
 
             globalTexturePool.Clear();
-            textureGroupCache.Clear();
+            singleTextureCache.Clear();
 
             settings = new RayTracingAccelerationStructure.Settings
             {
@@ -277,7 +292,13 @@ namespace DefaultNamespace
                     if (mat == null && sharedMaterials.Length > 0) mat = sharedMaterials[sharedMaterials.Length - 1];
 
                     // 处理材质纹理
-                    uint baseTextureIndex = GetTextureGroupIndex(mat);
+                    
+                    
+                    
+                    uint baseTextureIndex = GetSingleTextureIndex(  (Texture2D)mat.GetTexture("_BaseMap") , defaultWhite);
+                    uint maskTextureIndex = GetSingleTextureIndex( (Texture2D)mat.GetTexture("_MetallicGlossMap") , defaultMask);
+                    uint normalTextureIndex = GetSingleTextureIndex( (Texture2D)mat.GetTexture("_BumpMap") , defaultNormal);
+                    uint emissionTextureIndex = GetSingleTextureIndex( (Texture2D)mat.GetTexture("_EmissionMap") , defaultBlack);
 
                     // 处理 Flags
                     uint currentFlags = 0;
@@ -293,6 +314,9 @@ namespace DefaultNamespace
                     }
 
                     inst.textureOffsetAndFlags = ((currentFlags & 0xFF) << FLAG_FIRST_BIT) | (baseTextureIndex & NON_FLAG_MASK);
+                    inst.normalOffset = normalTextureIndex;
+                    inst.maskOffset = maskTextureIndex;
+                    inst.emissionOffset = emissionTextureIndex;
 
                     // 处理材质属性 Scale
                     if (mat != null)
@@ -336,8 +360,6 @@ namespace DefaultNamespace
                 }
             }
 
- 
-
 
             _instanceBuffer?.Release();
             _instanceBuffer = new ComputeBuffer(instanceDataList.Count, Marshal.SizeOf<InstanceData>());
@@ -351,17 +373,83 @@ namespace DefaultNamespace
 
 
             Debug.Log($"Built RTAS. Renderers: {renderers.Length}, Instances: {instanceDataList.Count}, Primitives: {primitiveDataList.Count}");
-            
-            
-            
-            // textureArray = new Texture2DArray(1024, 1024, globalTexturePool.Count, TextureFormat.RGBA32, false);
-            // for (int i = 0; i < globalTexturePool.Count; i++)
-            // {
-            //     Graphics.CopyTexture(globalTexturePool[i], 0, 0, textureArray, i, 0);
-            // }
-            // textureArray.Apply();
-            //
-            // Debug.Log($"Built Texture2DArray with {globalTexturePool.Count} textures.");
+            Debug.Log($"Total unique textures in pool: {globalTexturePool.Count}");
+
+
+            // 构建 Texture2DArray
+            BuildTextureArray();
+        }
+
+
+        private void BuildTextureArray()
+        {
+            if (globalTexturePool == null || globalTexturePool.Count == 0)
+            {
+                Debug.LogWarning("Texture pool is empty, skipping TextureArray build.");
+                return;
+            }
+
+            // 1. 定义统一参数
+            int resolution = 512;
+            int count = globalTexturePool.Count;
+            // 使用 RGBA32 格式，启用 Mipmap，采用线性色彩空间
+            TextureFormat format = TextureFormat.RGBA32;
+            bool useLinear = true;
+
+            // 如果已经存在，先释放旧资源
+            if (textureArray != null)
+            {
+                Object.DestroyImmediate(textureArray);
+            }
+
+            // 2. 初始化 Texture2DArray
+            textureArray = new Texture2DArray(resolution, resolution, count, format, true, !useLinear);
+            textureArray.filterMode = FilterMode.Trilinear;
+            textureArray.wrapMode = TextureWrapMode.Repeat;
+            textureArray.anisoLevel = 16;
+
+            // 3. 准备临时中转资源
+            // 使用 RenderTexture 来处理缩放和读取（无视原始贴图的 Read/Write 限制）
+            RenderTexture tempRT = RenderTexture.GetTemporary(resolution, resolution, 0, RenderTextureFormat.ARGB32, useLinear ? RenderTextureReadWrite.Linear : RenderTextureReadWrite.sRGB);
+            // 准备一个临时的 Texture2D 用于将 RT 的内容塞进 TextureArray
+            Texture2D tempTex = new Texture2D(resolution, resolution, format, false, !useLinear);
+
+            RenderTexture previousRT = RenderTexture.active;
+
+            try
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    Texture2D src = globalTexturePool[i];
+                    if (src == null) src = defaultWhite;
+
+                    // 使用 Graphics.Blit 进行自动缩放（从 src 分辨率 -> 1024x1024）
+                    // 即使 src 不可读，Blit 也能正常工作
+                    Graphics.Blit(src, tempRT);
+
+                    // 将 RT 内容读回 tempTex
+                    RenderTexture.active = tempRT;
+                    tempTex.ReadPixels(new Rect(0, 0, resolution, resolution), 0, 0);
+                    tempTex.Apply(false); // 不需要在这里生成 mipmap
+
+                    // 将 tempTex 拷贝到 Texture2DArray 的对应层（Slice）
+                    // 参数：源贴图, 源层级, 源Mip, 目标Array, 目标层级, 目标Mip
+                    Graphics.CopyTexture(tempTex, 0, 0, textureArray, i, 0);
+                }
+
+                // 4. 生成所有切片的 Mipmaps
+                // 这一步在所有 Slice 填充完毕后调用，提高渲染性能
+                textureArray.Apply(true, true);
+            }
+            finally
+            {
+                // 5. 清理临时资源
+                RenderTexture.active = previousRT;
+                RenderTexture.ReleaseTemporary(tempRT);
+                if (tempTex != null) Object.DestroyImmediate(tempTex);
+            }
+
+            Debug.Log($"Successfully built Texture2DArray with {count} slices at 1024x1024.");
         }
 
         float SafeSign(float x)

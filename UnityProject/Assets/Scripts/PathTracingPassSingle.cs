@@ -178,7 +178,7 @@ namespace PathTracing
                 
                 
 
-                natCmd.SetComputeConstantBufferParam(data.opaqueTracingCs, "GlobalConstants", data.ConstantBuffer, 0, data.ConstantBuffer.stride);
+                natCmd.SetComputeConstantBufferParam(data.opaqueTracingCs, paramsID, data.ConstantBuffer, 0, data.ConstantBuffer.stride);
 
                 natCmd.SetComputeBufferParam(data.opaqueTracingCs, 0, g_ScramblingRankingID, data.ScramblingRanking);
                 natCmd.SetComputeBufferParam(data.opaqueTracingCs, 0, g_SobolID, data.Sobol);

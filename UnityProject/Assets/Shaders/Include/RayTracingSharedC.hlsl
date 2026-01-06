@@ -48,6 +48,9 @@ struct GeometryProps
     float curvature;
     uint textureOffsetAndFlags;
     uint instanceIndex;
+    uint normalTextureIndex;
+    uint maskTextureIndex;
+    uint emissionTextureIndex;
 
     float3 GetXoffset(float3 offsetDir, float amount = PT_BOUNCE_RAY_OFFSET)
     {
@@ -273,6 +276,10 @@ GeometryProps CastRay(float3 origin, float3 direction, float Tmin, float Tmax, f
 
         // Texture offset and flags
         props.textureOffsetAndFlags = instanceData.textureOffsetAndFlags;
+        props.normalTextureIndex = instanceData.normalOffset;
+        props.maskTextureIndex = instanceData.maskOffset;
+        props.emissionTextureIndex = instanceData.emissionOffset;
+        
 
         // Transform
         float3x3 mObjectToWorld = (float3x3)rayQuery.CommittedObjectToWorld3x4();
@@ -395,18 +402,18 @@ MaterialProps GetMaterialProps(GeometryProps geometryProps)
     float3 baseColor = saturate(color.xyz);
 
     // Roughness and metalness
-    coords = GetSamplingCoords(baseTexture + 1, geometryProps.uv, geometryProps.mip, MIP_SHARP);
-    float3 materialProps = gIn_Textures.SAMPLEARRAY(baseTexture + 1,coords).xyz;
+    coords = GetSamplingCoords(geometryProps.maskTextureIndex, geometryProps.uv, geometryProps.mip, MIP_SHARP);
+    float3 materialProps = gIn_Textures.SAMPLEARRAY(geometryProps.maskTextureIndex,coords).xyz;
     float roughness = saturate(materialProps.y * instanceData.emissionAndRoughnessScale.w);
     float metalness = saturate(materialProps.z * instanceData.baseColorAndMetalnessScale.w);
 
     // Normal
 
     float2 normalUV = float2(geometryProps.uv.x, 1 - geometryProps.uv.y); // 修正UV翻转问题
-    coords = GetSamplingCoords(baseTexture + 2, normalUV * instanceData.normalUvScale, geometryProps.mip, MIP_LESS_SHARP);
+    coords = GetSamplingCoords(geometryProps.normalTextureIndex, normalUV * instanceData.normalUvScale, geometryProps.mip, MIP_LESS_SHARP);
 
 
-    float2 packedNormal = gIn_Textures.SAMPLEARRAY(baseTexture + 2,coords).xy;
+    float2 packedNormal = gIn_Textures.SAMPLEARRAY(geometryProps.normalTextureIndex,coords).xy;
     float3 N = gUseNormalMap ? Geometry::TransformLocalNormal(packedNormal, geometryProps.T, geometryProps.N) : geometryProps.N;
     float3 T = geometryProps.T.xyz;
 
@@ -417,8 +424,8 @@ MaterialProps GetMaterialProps(GeometryProps geometryProps)
     localCurvature /= pixelSize;
 
     // Emission
-    coords = GetSamplingCoords(baseTexture + 3, geometryProps.uv, geometryProps.mip, MIP_VISIBILITY);
-    float3 Lemi = gIn_Textures.SAMPLEARRAY((baseTexture + 3),coords).xyz;
+    coords = GetSamplingCoords(geometryProps.emissionTextureIndex, geometryProps.uv, geometryProps.mip, MIP_VISIBILITY);
+    float3 Lemi = gIn_Textures.SAMPLEARRAY(geometryProps.emissionTextureIndex,coords).xyz;
     Lemi *= instanceData.emissionAndRoughnessScale.xyz;
     Lemi *= (baseColor + 0.01) / (max(baseColor, max(baseColor, baseColor)) + 0.01);
 

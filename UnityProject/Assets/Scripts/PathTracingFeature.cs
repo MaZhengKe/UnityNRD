@@ -214,7 +214,7 @@ namespace PathTracing
         public void ReBuild()
         {
             _dataBuilder.Build();
-            _dataBuilder.textureArray = Array;
+            // _dataBuilder.textureArray = Array;
         }
         
 

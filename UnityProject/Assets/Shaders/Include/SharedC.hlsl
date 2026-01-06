@@ -206,9 +206,9 @@ struct InstanceData
     float scale; // TODO: handling object scale embedded into the transformation matrix (assuming uniform scale), sign represents triangle winding
 
     uint32_t morphPrimitiveOffset;
-    uint32_t unused1;
-    uint32_t unused2;
-    uint32_t unused3;
+    uint32_t normalOffset;
+    uint32_t maskOffset;
+    uint32_t emissionOffset;
 };
 
 cbuffer PathTracingParams : register(b0)
