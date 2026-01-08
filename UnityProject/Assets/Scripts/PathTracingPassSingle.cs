@@ -271,7 +271,7 @@ namespace PathTracing
                 // DLSS调用
 
                 // NRD降噪
-                natCmd.IssuePluginEventAndData(GetRenderEventAndDataFunc(), 2, data.RRDataPtr);
+                // natCmd.IssuePluginEventAndData(GetRenderEventAndDataFunc(), 2, data.RRDataPtr);
             }
             else
             {
