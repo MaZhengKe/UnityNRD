@@ -289,9 +289,6 @@ Shader "Custom/LitWithRayTracingNormal"
                 mip += MAX_MIP_LEVEL;
                 mip = max(mip, 0.0);
 
-                // mip = payload.mipAndCone.y;
-
-                // mip = 0;
                 payload.mipAndCone.x += mip;
 
                 #if _NORMALMAP

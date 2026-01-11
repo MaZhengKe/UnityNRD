@@ -23,6 +23,7 @@ namespace PathTracing
         public ComputeShader CompositionCs;
         public ComputeShader TaaCs;
         public ComputeShader DlssBeforeCs;
+        public ComputeShader PrepareLightsCs;
         public Material BiltMaterial;
 
         public ComputeShader SharcResolveCs;
@@ -36,6 +37,7 @@ namespace PathTracing
         public RayTracingAccelerationStructure AccelerationStructure;
         public NRDDenoiser NrdDenoiser;
         public DLRRDenoiser DLRRDenoiser;
+        public RTXDI_LightBufferParameters rtxdiLightBufferParameters;
 
         public GraphicsBuffer ScramblingRanking;
         public GraphicsBuffer Sobol;
@@ -92,6 +94,7 @@ namespace PathTracing
             internal ComputeShader CompositionCs;
             internal ComputeShader TaaCs;
             internal ComputeShader DlssBeforeCs;
+            internal ComputeShader PrepareLightsCs;
             internal Material BlitMaterial;
             internal uint outputGridW;
             internal uint outputGridH;
@@ -139,7 +142,12 @@ namespace PathTracing
             var dlssDenoiseMarker = new ProfilerMarker(ProfilerCategory.Render, "DLSS Denoise", MarkerFlags.SampleGPU);
             var outputBlitMarker = new ProfilerMarker(ProfilerCategory.Render, "Output Blit", MarkerFlags.SampleGPU);
 
+            var prepareLightsMarker = new ProfilerMarker(ProfilerCategory.Render, "Prepare Lights", MarkerFlags.SampleGPU);
 
+ 
+            
+            
+            
             // Sharc update
             {
                 natCmd.BeginSample(sharcUpdateMarker);
@@ -406,7 +414,14 @@ namespace PathTracing
 
                     if (data.Setting.RR)
                     {
-                        Blitter.BlitTexture(natCmd, data.DlssOutput, new Vector4(1, 1, 0, 0), data.BlitMaterial, (int)ShowPass.showDlss);
+                        if (data.Setting.tmpDisableRR)
+                        {
+                            Blitter.BlitTexture(natCmd, data.Composed, scaleOffset, data.BlitMaterial, (int)ShowPass.showOut);
+                        }
+                        else
+                        {
+                            Blitter.BlitTexture(natCmd, data.DlssOutput, new Vector4(1, 1, 0, 0), data.BlitMaterial, (int)ShowPass.showDlss);
+                        }
                     }
                     else
                     {
@@ -483,6 +498,7 @@ namespace PathTracing
             passData.CompositionCs = CompositionCs;
             passData.TaaCs = TaaCs;
             passData.DlssBeforeCs = DlssBeforeCs;
+            passData.PrepareLightsCs = PrepareLightsCs;
             passData.BlitMaterial = BiltMaterial;
 
             passData.SharcResolveCs = SharcResolveCs;

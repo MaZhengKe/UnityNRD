@@ -382,6 +382,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: ShaderBalls
       objectReference: {fileID: 0}
+    - target: {fileID: 8771091787928289351, guid: 9c2e154e190f89945a49f6b86fc55b2a, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects:
@@ -557,6 +561,87 @@ Transform:
   - {fileID: 736417409}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: -1610.5, z: 0}
+--- !u!1001 &700035011
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: -293203802875518696, guid: 718bcff04c5747b4c8c8a9920a207876, type: 3}
+      propertyPath: m_Name
+      value: Arcade
+      objectReference: {fileID: 0}
+    - target: {fileID: 2236576221854347336, guid: 718bcff04c5747b4c8c8a9920a207876, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: e327f0e45e3240f47bb1cf7b0a2821da, type: 2}
+    - target: {fileID: 2562418714875612864, guid: 718bcff04c5747b4c8c8a9920a207876, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 94cb5260d2319964187a497051f5b387, type: 2}
+    - target: {fileID: 7881466077556996133, guid: 718bcff04c5747b4c8c8a9920a207876, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7881466077556996133, guid: 718bcff04c5747b4c8c8a9920a207876, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7881466077556996133, guid: 718bcff04c5747b4c8c8a9920a207876, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7881466077556996133, guid: 718bcff04c5747b4c8c8a9920a207876, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7881466077556996133, guid: 718bcff04c5747b4c8c8a9920a207876, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7881466077556996133, guid: 718bcff04c5747b4c8c8a9920a207876, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7881466077556996133, guid: 718bcff04c5747b4c8c8a9920a207876, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7881466077556996133, guid: 718bcff04c5747b4c8c8a9920a207876, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7881466077556996133, guid: 718bcff04c5747b4c8c8a9920a207876, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7881466077556996133, guid: 718bcff04c5747b4c8c8a9920a207876, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7960975891497508109, guid: 718bcff04c5747b4c8c8a9920a207876, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 2007f7b79e1db234e80b3ef165db9d36, type: 2}
+    - target: {fileID: 7960975891497508109, guid: 718bcff04c5747b4c8c8a9920a207876, type: 3}
+      propertyPath: 'm_Materials.Array.data[1]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 1750874d51da3ed4584d2fa3dea765b7, type: 2}
+    - target: {fileID: 8954046739128657433, guid: 718bcff04c5747b4c8c8a9920a207876, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 5e7680a7df195d9488e58a52504975a1, type: 2}
+    - target: {fileID: 8954046739128657433, guid: 718bcff04c5747b4c8c8a9920a207876, type: 3}
+      propertyPath: 'm_Materials.Array.data[1]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 96f50d43146b33c40b0541e355f45e11, type: 2}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: -3199799093341109342, guid: 718bcff04c5747b4c8c8a9920a207876, type: 3}
 --- !u!1 &736417408
 GameObject:
   m_ObjectHideFlags: 0
@@ -860,7 +945,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f705ff225004480899bba34303241a1c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ExampleScript
-  fontAsset: {fileID: 0}
   recorderNames:
   - Sharc Update
   - Sharc Resolve
@@ -872,6 +956,7 @@ MonoBehaviour:
   - DLSS Before
   - DLSS Denoise
   - Output Blit
+  averageWindowSeconds: 1
 --- !u!4 &1080709640
 Transform:
   m_ObjectHideFlags: 0
@@ -1840,3 +1925,4 @@ SceneRoots:
   - {fileID: 804426385}
   - {fileID: 1405910070}
   - {fileID: 1080709640}
+  - {fileID: 700035011}

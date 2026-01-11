@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
 using PathTracing;
 using Unity.Mathematics;
@@ -86,6 +87,8 @@ namespace DefaultNamespace
 
         // 缓存已添加的纹理组，避免重复上传相同的材质纹理组合
         private Dictionary<string, uint> textureGroupCache = new Dictionary<string, uint>();
+        
+        public Dictionary<Renderer, uint> rendererInstanceIndexMap = new Dictionary<Renderer, uint>();
 
         private uint GetTextureGroupIndex(Material mat)
         {
@@ -126,6 +129,8 @@ namespace DefaultNamespace
 
         public List<InstanceData> instanceDataList = new List<InstanceData>();
         public List<PrimitiveData> primitiveDataList = new List<PrimitiveData>();
+
+
 
         [ContextMenu("Build RTAS and Buffers")]
         public void Build()
@@ -188,7 +193,6 @@ namespace DefaultNamespace
                 Matrix4x4 localToWorld = renderers[i].transform.localToWorldMatrix;
 
                 // --- 构造 Primitive Data (每个三角形一个) ---
-                int[] triangles = mesh.triangles;
                 Vector3[] vertices = mesh.vertices;
                 Vector2[] uvs = mesh.uv;
                 Vector3[] normals = mesh.normals;
@@ -197,14 +201,9 @@ namespace DefaultNamespace
                 Vector4[] tangents = mesh.tangents;
                 Material[] sharedMaterials = r.sharedMaterials;
 
+                rendererInstanceIndexMap[r] = (uint)globalInstanceIndexCounter;
 
-                // 【关键修改 2】设置 RTAS 中该 Renderer 的 InstanceID 为当前的全局计数器基数
-                // 这样 shader 中: Index = BaseID + GeometryIndex(SubMeshIndex) 就能对齐了
-
-                // uint instanceID = (uint)globalInstanceIndexCounter;
-
-
-                // 【关键修改 3】遍历 SubMesh
+                // 遍历 SubMesh
                 for (int subIdx = 0; subIdx < subMeshCount; subIdx++)
                 {
                     // 获取当前 SubMesh 的三角形索引

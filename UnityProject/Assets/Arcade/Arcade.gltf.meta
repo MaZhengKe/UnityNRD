@@ -1,0 +1,79 @@
+fileFormatVersion: 2
+guid: 718bcff04c5747b4c8c8a9920a207876
+ScriptedImporter:
+  internalIDToNameTable: []
+  externalObjects: {}
+  serializedVersion: 2
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+  script: {fileID: 11500000, guid: 715df9372183c47e389bb6e19fbc3b52, type: 3}
+  editorImportSettings:
+    generateSecondaryUVSet: 0
+  importSettings:
+    nodeNameMethod: 1
+    animationMethod: 2
+    generateMipMaps: 1
+    texturesReadable: 0
+    defaultMinFilterMode: 9729
+    defaultMagFilterMode: 9729
+    anisotropicFilterLevel: 1
+  instantiationSettings:
+    mask: -1
+    layer: 0
+    skinUpdateWhenOffscreen: 1
+    lightIntensityFactor: 1
+    sceneObjectCreation: 2
+  assetDependencies:
+  - type: 0
+    originalUri: Assets\Arcade\Arcade.bin
+    assetPath: Assets\Arcade\Arcade.bin
+  - type: 1
+    originalUri: Assets\Arcade\Wall_Normal.png
+    assetPath: Assets\Arcade\Wall_Normal.png
+  - type: 1
+    originalUri: Assets\Arcade\Wall_BaseColor.png
+    assetPath: Assets\Arcade\Wall_BaseColor.png
+  - type: 1
+    originalUri: Assets\Arcade\CheckerTile_Normal.png
+    assetPath: Assets\Arcade\CheckerTile_Normal.png
+  - type: 1
+    originalUri: Assets\Arcade\CheckerTile_BaseColor.png
+    assetPath: Assets\Arcade\CheckerTile_BaseColor.png
+  - type: 1
+    originalUri: Assets\Arcade\Poster_BaseColor.png
+    assetPath: Assets\Arcade\Poster_BaseColor.png
+  - type: 1
+    originalUri: Assets\Arcade\Chair_Normal.png
+    assetPath: Assets\Arcade\Chair_Normal.png
+  - type: 1
+    originalUri: Assets\Arcade\Chair_Orange_BaseColor.png
+    assetPath: Assets\Arcade\Chair_Orange_BaseColor.png
+  - type: 1
+    originalUri: Assets\Arcade\Chair_Normal.png
+    assetPath: Assets\Arcade\Chair_Normal.png
+  - type: 1
+    originalUri: Assets\Arcade\Chair_Blue_BaseColor.png
+    assetPath: Assets\Arcade\Chair_Blue_BaseColor.png
+  - type: 1
+    originalUri: Assets\Arcade\Cabinet_Normal.png
+    assetPath: Assets\Arcade\Cabinet_Normal.png
+  - type: 1
+    originalUri: Assets\Arcade\Cabinet_Emissive.png
+    assetPath: Assets\Arcade\Cabinet_Emissive.png
+  - type: 1
+    originalUri: Assets\Arcade\Cabinet_BaseColor.png
+    assetPath: Assets\Arcade\Cabinet_BaseColor.png
+  - type: 1
+    originalUri: Assets\Arcade\Cabinet_Specular.png
+    assetPath: Assets\Arcade\Cabinet_Specular.png
+  - type: 1
+    originalUri: Assets\Arcade\Chair_Specular.png
+    assetPath: Assets\Arcade\Chair_Specular.png
+  - type: 1
+    originalUri: Assets\Arcade\CheckerTile_Specular.png
+    assetPath: Assets\Arcade\CheckerTile_Specular.png
+  - type: 1
+    originalUri: Assets\Arcade\Wall_Specular.png
+    assetPath: Assets\Arcade\Wall_Specular.png
+  reportItems: []

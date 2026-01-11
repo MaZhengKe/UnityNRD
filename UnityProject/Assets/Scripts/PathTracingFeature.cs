@@ -179,6 +179,7 @@ namespace PathTracing
         public ComputeShader compositionComputeShader;
         public ComputeShader taaComputeShader;
         public ComputeShader dlssBeforeComputeShader;
+        public ComputeShader PrepareLightsCs;
 
         public ComputeShader sharcResolveCs;
         public RayTracingShader sharcUpdateTs;
@@ -203,8 +204,15 @@ namespace PathTracing
 
         private Dictionary<int, NRDDenoiser> _nrdDenoisers = new();
         private Dictionary<int, DLRRDenoiser> _dlrrDenoisers = new();
+        
+        private Dictionary<int, ReSTIRDIContext> _ReSTIRDIContexts = new();
+        private Dictionary<int, RtxdiResources> _RtxdiResourcess = new();
+        
 
         public PathTracingDataBuilder _dataBuilder = new PathTracingDataBuilder();
+        
+        public ReSTIRDIContext restirdiContext;
+        public RtxdiResources resources;
 
         [ContextMenu("ReBuild AccelerationStructure")]
         public void ReBuild()
@@ -267,6 +275,7 @@ namespace PathTracing
                 CompositionCs = compositionComputeShader,
                 TaaCs = taaComputeShader,
                 DlssBeforeCs = dlssBeforeComputeShader,
+                PrepareLightsCs = PrepareLightsCs,
                 // AccelerationStructure = accelerationStructure,
                 ScramblingRanking = gIn_ScramblingRankingUint,
                 Sobol = gIn_SobolUint,
@@ -339,6 +348,30 @@ namespace PathTracing
 
             if (!_dataBuilder.IsEmpty())
             {
+                _pathTracingPass.rtxdiLightBufferParameters = new RTXDI_LightBufferParameters();
+                
+                
+                if (!_ReSTIRDIContexts.TryGetValue(camID, out var restirdiContext))
+                {
+                    restirdiContext = new ReSTIRDIContext(cam.pixelWidth, cam.pixelHeight);
+                    _ReSTIRDIContexts.Add(camID, restirdiContext);
+                }
+                
+                if (!_RtxdiResourcess.TryGetValue(camID, out var resources))
+                {
+                    var (numEmissiveMeshes, numEmissiveTriangles,numGeometryInstances) = PrepareLightsPass.CountLightsInScene(_dataBuilder);
+                    resources = new RtxdiResources(restirdiContext,numEmissiveMeshes, numEmissiveTriangles,numGeometryInstances);
+
+                    var rtxdiLightBufferParameters = PrepareLightsPass.Process(resources, _dataBuilder);
+                    
+                    _pathTracingPass.rtxdiLightBufferParameters = rtxdiLightBufferParameters;
+
+                    _RtxdiResourcess.Add(camID, resources);
+                }
+                
+                
+                
+                
                 renderer.EnqueuePass(_pathTracingPass);
             }
         }
